@@ -46,8 +46,26 @@ export default function Page() {
     },
   })
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    console.log(values)
+  async function onSubmit(values: z.infer<typeof formSchema>) {
+    try {
+      const response = await fetch("/api/projects", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(values),
+      });
+
+      if (!response.ok) {
+        throw new Error("Erro ao salvar o projeto");
+      }
+
+      const data = await response.json();
+      console.log("Projeto salvo:", data);
+      form.reset();
+    } catch (error) {
+      console.error("Erro no formulário:", error);
+    }
   }
 
   return (
