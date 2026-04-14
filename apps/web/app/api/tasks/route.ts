@@ -13,12 +13,12 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { name, project, priority, description, applicant } = body;
 
-    const tableName = process.env["DYNAMODB-TABLE-PROJECTS"];
+    const tableName = process.env["DYNAMODB-TABLE-TASKS"];
 
     if (!tableName) {
-      console.error("DYNAMODB-TABLE-PROJECTS environment variable is not set");
+      console.error("DYNAMODB-TABLE-TASKS environment variable is not set");
       return NextResponse.json(
-        { error: "DYNAMODB-TABLE-PROJECTS environment variable is not set" },
+        { error: "DYNAMODB-TABLE-TASKS environment variable is not set" },
         { status: 500 }
       );
     }
