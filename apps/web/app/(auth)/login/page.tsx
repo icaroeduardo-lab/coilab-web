@@ -88,6 +88,12 @@ export default function LoginPage() {
             </Button>
           </form>
         </Form>
+        <div className="text-center text-sm">
+          Não tem uma conta?{" "}
+          <Link href="/register" className="underline underline-offset-4">
+            Cadastre-se
+          </Link>
+        </div>
       </div>
     </div>
   )
