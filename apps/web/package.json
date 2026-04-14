@@ -15,6 +15,7 @@
     "@aws-sdk/client-dynamodb": "^3.1030.0",
     "@aws-sdk/lib-dynamodb": "^3.1030.0",
     "@hookform/resolvers": "^5.2.2",
+    "@tanstack/react-table": "^8.21.3",
     "@workspace/ui": "workspace:*",
     "date-fns": "^4.1.0",
     "lucide-react": "^1.8.0",
