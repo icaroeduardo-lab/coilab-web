@@ -25,13 +25,20 @@ import {
 } from "@workspace/ui/components/form"
 import { Input } from "@workspace/ui/components/input"
 import { Textarea } from "@workspace/ui/components/textarea"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@workspace/ui/components/select"
 import { DataTable } from "@/components/data-table"
 
 const formSchema = z.object({
   name: z.string().min(2, {
     message: "O nome deve ter pelo menos 2 caracteres.",
   }),
-  applicant: z.string().min(2, {
+  applicant: z.string().min(1, {
     message: "O departamento que solicitou é obrigatório.",
   }),
   project: z.string().min(2, {
@@ -53,6 +60,11 @@ type Task = {
   priority: string
   status: string
   createdAt: string
+}
+
+type StatusOption = {
+  id: string
+  name: string
 }
 
 const columns: ColumnDef<Task>[] = [
@@ -93,6 +105,7 @@ export default function Page() {
     message: string
   } | null>(null)
   const [tasks, setTasks] = useState<Task[]>([])
+  const [statuses, setStatuses] = useState<StatusOption[]>([])
   const [loading, setLoading] = useState(true)
 
   const fetchTasks = useCallback(async () => {
@@ -100,7 +113,7 @@ export default function Page() {
       setLoading(true)
       const response = await fetch("/api/tasks")
       if (response.ok) {
-        const data = await response.ok ? await response.json() : []
+        const data = await response.json()
         setTasks(data)
       }
     } catch (error) {
@@ -110,9 +123,22 @@ export default function Page() {
     }
   }, [])
 
+  const fetchStatuses = useCallback(async () => {
+    try {
+      const response = await fetch("/api/status")
+      if (response.ok) {
+        const data = await response.json()
+        setStatuses(data)
+      }
+    } catch (error) {
+      console.error("Erro ao buscar status:", error)
+    }
+  }, [])
+
   useEffect(() => {
     fetchTasks()
-  }, [fetchTasks])
+    fetchStatuses()
+  }, [fetchTasks, fetchStatuses])
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -206,9 +232,23 @@ export default function Page() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Solicitante</FormLabel>
-                        <FormControl>
-                          <Input {...field} />
-                        </FormControl>
+                        <Select
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione um solicitante" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {statuses.map((status) => (
+                              <SelectItem key={status.id} value={status.name}>
+                                {status.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                         <FormMessage />
                       </FormItem>
                     )}
