@@ -168,6 +168,11 @@ export default function Page() {
 
       <Dialog open={!!feedback} onOpenChange={(open) => !open && setFeedback(null)}>
         <DialogContent className="sm:max-w-md">
+          <DialogHeader className="sr-only">
+            <DialogTitle>
+              {feedback?.type === "success" ? "Sucesso" : "Erro"}
+            </DialogTitle>
+          </DialogHeader>
           <div className="flex flex-col items-center justify-center space-y-4 py-6 text-center">
             {feedback?.type === "success" ? (
               <CheckCircle2 className="h-12 w-12 text-green-500" />
