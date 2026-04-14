@@ -9,7 +9,7 @@ const docClient = DynamoDBDocumentClient.from(client);
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { name, priority, description } = body;
+    const { name, priority, description, applicant, status } = body;
 
     const tableName = process.env["DYNAMODB-TABLE-PROJECTS"];
 
@@ -23,8 +23,10 @@ export async function POST(request: Request) {
     const item = {
       id: uuidv4(),
       name,
+      applicant,
       priority,
       description,
+      status: status || "backlog",
       createdAt: new Date().toISOString(),
     };
 

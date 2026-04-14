@@ -28,12 +28,16 @@ const formSchema = z.object({
   name: z.string().min(2, {
     message: "O nome deve ter pelo menos 2 caracteres.",
   }),
+  applicant: z.string().min(2, {
+    message: "O departamento que solicitou é obrigatório.",
+  }),
   priority: z.string().min(2, {
     message: "A prioridade é obrigatória.",
   }),
   description: z.string().min(2, {
-    message: "O projeto deve ter uma descroção obrigatória.",
+    message: "O projeto deve ter uma descrição obrigatória.",
   }),
+  status: z.string().default("backlog"),
 })
 
 export default function Page() {
@@ -41,8 +45,10 @@ export default function Page() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: "",
+      applicant: "",
       priority: "",
       description: "",
+      status: "backlog",
     },
   })
 
@@ -79,7 +85,7 @@ export default function Page() {
         </DialogTrigger>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Novo</DialogTitle>
+            <DialogTitle>Novo Projeto</DialogTitle>
           </DialogHeader>
           <div className="py-4">
             <Form {...form}>
@@ -90,6 +96,19 @@ export default function Page() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Nome</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="applicant"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Solicitante</FormLabel>
                       <FormControl>
                         <Input {...field} />
                       </FormControl>
