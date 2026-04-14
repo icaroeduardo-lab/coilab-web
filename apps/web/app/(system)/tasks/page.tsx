@@ -327,13 +327,18 @@ export default function Page() {
         mutate("/api/tasks", (currentTasks: Task[] | undefined) => {
             if (!currentTasks) return []
             const activeIndex = currentTasks.findIndex((t) => t.id === activeId)
+            
+            if (activeIndex === -1) return currentTasks
+
             const targetStatus = isOverAColumn 
                 ? over.data.current?.status.name 
                 : over.data.current?.task.status
 
             const updatedTasks = [...currentTasks]
-            if (updatedTasks[activeIndex].status !== targetStatus) {
-                updatedTasks[activeIndex] = { ...updatedTasks[activeIndex], status: targetStatus }
+            const taskToUpdate = updatedTasks[activeIndex]
+
+            if (taskToUpdate && taskToUpdate.status !== targetStatus) {
+                updatedTasks[activeIndex] = { ...taskToUpdate, status: targetStatus }
             }
 
             if (isOverATask) {
