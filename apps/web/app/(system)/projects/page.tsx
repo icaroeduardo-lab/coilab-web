@@ -1,9 +1,10 @@
 "use client"
 
+import { useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
-import { Plus } from "lucide-react"
+import { Plus, CheckCircle2, AlertCircle } from "lucide-react"
 
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -41,6 +42,12 @@ const formSchema = z.object({
 })
 
 export default function Page() {
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
+  const [feedback, setFeedback] = useState<{
+    type: "success" | "error"
+    message: string
+  } | null>(null)
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -60,23 +67,31 @@ export default function Page() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(values),
-      });
+      })
+
+      setIsCreateDialogOpen(false)
 
       if (!response.ok) {
-        throw new Error("Erro ao salvar o projeto");
+        throw new Error("Erro ao salvar o projeto")
       }
 
-      const data = await response.json();
-      console.log("Projeto salvo:", data);
-      form.reset();
+      const data = await response.json()
+      console.log("Projeto salvo:", data)
+      form.reset()
+      setFeedback({ type: "success", message: "Tarefa criada com sucesso" })
     } catch (error) {
-      console.error("Erro no formulário:", error);
+      console.error("Erro no formulário:", error)
+      setIsCreateDialogOpen(false)
+      setFeedback({
+        type: "error",
+        message: "Ocorreu um erro ao criar a tarefa. Tente novamente.",
+      })
     }
   }
 
   return (
     <div className="flex min-h-svh p-6">
-      <Dialog>
+      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
         <DialogTrigger asChild>
           <Button size={"lg"} className="px-4">
             <Plus />
@@ -142,9 +157,37 @@ export default function Page() {
                     </FormItem>
                   )}
                 />
-                <Button type="submit" className="w-full">Salvar</Button>
+                <Button type="submit" className="w-full">
+                  Salvar
+                </Button>
               </form>
             </Form>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!feedback} onOpenChange={(open) => !open && setFeedback(null)}>
+        <DialogContent className="sm:max-w-md">
+          <div className="flex flex-col items-center justify-center space-y-4 py-6 text-center">
+            {feedback?.type === "success" ? (
+              <CheckCircle2 className="h-12 w-12 text-green-500" />
+            ) : (
+              <AlertCircle className="h-12 w-12 text-destructive" />
+            )}
+            <div className="space-y-2">
+              <h2 className="text-xl font-semibold">
+                {feedback?.type === "success" ? "Sucesso!" : "Erro"}
+              </h2>
+              <p className="text-muted-foreground">{feedback?.message}</p>
+            </div>
+            <Button
+              type="button"
+              variant="secondary"
+              className="mt-4"
+              onClick={() => setFeedback(null)}
+            >
+              Fechar
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
