@@ -29,8 +29,8 @@ const formSchema = z.object({
   name: z.string().min(2, {
     message: "O nome deve ter pelo menos 2 caracteres.",
   }),
-  project: z.string().min(2, {
-    message: "O projeto é obrigatório.",
+  applicant: z.string().min(2, {
+    message: "O departamento que solicitou é obrigatório.",
   }),
   priority: z.string().min(2, {
     message: "A prioridade é obrigatória.",
@@ -51,7 +51,7 @@ export default function Page() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: "",
-      project: "",
+      applicant: "",
       priority: "",
       description: "",
     },
@@ -118,10 +118,10 @@ export default function Page() {
                 />
                 <FormField
                   control={form.control}
-                  name="project"
+                  name="applicant"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Projeto</FormLabel>
+                      <FormLabel>Solicitante</FormLabel>
                       <FormControl>
                         <Input {...field} />
                       </FormControl>
