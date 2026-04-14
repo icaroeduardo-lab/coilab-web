@@ -56,7 +56,7 @@ export async function POST(request: Request) {
       applicant,
       priority,
       description,
-      status: "backlog",
+      status: "Backlog",
       createdAt: new Date().toISOString(),
     };
 

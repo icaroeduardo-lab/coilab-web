@@ -1,11 +1,12 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { Plus, CheckCircle2, AlertCircle, GripVertical } from "lucide-react"
 import { ColumnDef } from "@tanstack/react-table"
+import useSWR, { useSWRConfig } from "swr"
 import {
   DndContext,
   DragOverlay,
@@ -17,7 +18,6 @@ import {
   DragStartEvent,
   DragOverEvent,
   DragEndEvent,
-  defaultDropAnimationSideEffects,
 } from "@dnd-kit/core"
 import {
   arrayMove,
@@ -68,6 +68,8 @@ import {
 } from "@workspace/ui/components/tabs"
 import { DataTable } from "@/components/data-table"
 
+const fetcher = (url: string) => fetch(url).then((res) => res.json())
+
 const formSchema = z.object({
   name: z.string().min(2, {
     message: "O nome deve ter pelo menos 2 caracteres.",
@@ -97,7 +99,7 @@ type Task = {
   description?: string
 }
 
-type StatusOption = {
+type Option = {
   id: string
   name: string
 }
@@ -183,14 +185,20 @@ function SortableTaskCard({ task }: { task: Task }) {
       </CardHeader>
       <CardContent className="p-4 pt-0 text-xs">
         <div className="flex flex-col gap-1">
-          <p className="line-clamp-2 text-muted-foreground">{task.description}</p>
-          <div className="mt-2 flex items-center justify-between">
-            <span className="bg-secondary text-secondary-foreground px-2 py-0.5 rounded text-[10px]">
+          <p className="line-clamp-3 text-muted-foreground mb-2">
+            {task.description}
+          </p>
+          <div className="flex flex-wrap gap-1 mb-2">
+            <span className="bg-secondary text-secondary-foreground px-2 py-0.5 rounded text-[10px] font-medium">
               {task.priority}
             </span>
-            <span className="text-[10px] text-muted-foreground">
+            <span className="bg-muted text-muted-foreground px-2 py-0.5 rounded text-[10px]">
               {task.applicant}
             </span>
+          </div>
+          <div className="flex items-center justify-between text-[10px] text-muted-foreground border-t pt-2">
+            <span>Criado em:</span>
+            <span>{new Date(task.createdAt).toLocaleDateString("pt-BR")}</span>
           </div>
         </div>
       </CardContent>
@@ -202,7 +210,7 @@ function KanbanColumn({
   status,
   tasks,
 }: {
-  status: StatusOption
+  status: Option
   tasks: Task[]
 }) {
   const { setNodeRef } = useSortable({
@@ -236,14 +244,17 @@ function KanbanColumn({
 }
 
 export default function Page() {
+  const { mutate } = useSWRConfig()
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [feedback, setFeedback] = useState<{
-    type: "success" | "error"
+    type: "success" | "error" | null
     message: string
   } | null>(null)
-  const [tasks, setTasks] = useState<Task[]>([])
-  const [statuses, setStatuses] = useState<StatusOption[]>([])
-  const [loading, setLoading] = useState(true)
+  
+  const { data: tasks = [], isLoading: tasksLoading } = useSWR<Task[]>("/api/tasks", fetcher)
+  const { data: statuses = [] } = useSWR<Option[]>("/api/status", fetcher)
+  const { data: applicants = [] } = useSWR<Option[]>("/api/applicants", fetcher)
+
   const [activeTask, setActiveTask] = useState<Task | null>(null)
 
   const sensors = useSensors(
@@ -256,38 +267,6 @@ export default function Page() {
       coordinateGetter: sortableKeyboardCoordinates,
     })
   )
-
-  const fetchTasks = useCallback(async () => {
-    try {
-      setLoading(true)
-      const response = await fetch("/api/tasks")
-      if (response.ok) {
-        const data = await response.json()
-        setTasks(data)
-      }
-    } catch (error) {
-      console.error("Erro ao buscar tarefas:", error)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  const fetchStatuses = useCallback(async () => {
-    try {
-      const response = await fetch("/api/status")
-      if (response.ok) {
-        const data = await response.json()
-        setStatuses(data)
-      }
-    } catch (error) {
-      console.error("Erro ao buscar status:", error)
-    }
-  }, [])
-
-  useEffect(() => {
-    fetchTasks()
-    fetchStatuses()
-  }, [fetchTasks, fetchStatuses])
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -313,9 +292,12 @@ export default function Page() {
       if (!response.ok) {
         throw new Error("Falha ao atualizar status")
       }
+
+      // Revalidate tasks
+      mutate("/api/tasks")
     } catch (error) {
       console.error("Erro ao atualizar status:", error)
-      fetchTasks() // Rollback on error
+      mutate("/api/tasks") // Sync on error
     }
   }
 
@@ -340,34 +322,35 @@ export default function Page() {
 
     if (!isActiveATask) return
 
-    // Dropping a Task over another Task
-    if (isActiveATask && isOverATask) {
-      setTasks((tasks) => {
-        const activeIndex = tasks.findIndex((t) => t.id === activeId)
-        const overIndex = tasks.findIndex((t) => t.id === overId)
+    // Visual reordering in local cache for smoother experience
+    if (isActiveATask && (isOverATask || isOverAColumn)) {
+        mutate("/api/tasks", (currentTasks: Task[] | undefined) => {
+            if (!currentTasks) return []
+            const activeIndex = currentTasks.findIndex((t) => t.id === activeId)
+            const targetStatus = isOverAColumn 
+                ? over.data.current?.status.name 
+                : over.data.current?.task.status
 
-        if (tasks[activeIndex].status !== tasks[overIndex].status) {
-          tasks[activeIndex].status = tasks[overIndex].status
-          return arrayMove(tasks, activeIndex, overIndex - 1)
-        }
+            const updatedTasks = [...currentTasks]
+            if (updatedTasks[activeIndex].status !== targetStatus) {
+                updatedTasks[activeIndex] = { ...updatedTasks[activeIndex], status: targetStatus }
+            }
 
-        return arrayMove(tasks, activeIndex, overIndex)
-      })
-    }
-
-    // Dropping a Task over a Column
-    if (isActiveATask && isOverAColumn) {
-      setTasks((tasks) => {
-        const activeIndex = tasks.findIndex((t) => t.id === activeId)
-        tasks[activeIndex].status = overId.toString()
-        return arrayMove(tasks, activeIndex, activeIndex)
-      })
+            if (isOverATask) {
+                const overIndex = updatedTasks.findIndex((t) => t.id === overId)
+                return arrayMove(updatedTasks, activeIndex, overIndex)
+            }
+            
+            return updatedTasks
+        }, false)
     }
   }
 
   function onDragEnd(event: DragEndEvent) {
     const { active, over } = event
-    if (!over) {
+    const currentActiveTask = activeTask || active.data.current?.task
+
+    if (!over || !currentActiveTask) {
       setActiveTask(null)
       return
     }
@@ -382,7 +365,7 @@ export default function Page() {
       newStatus = overData.task.status
     }
 
-    if (newStatus && active.data.current?.task.status !== newStatus) {
+    if (newStatus && currentActiveTask.status.toLowerCase() !== newStatus.toLowerCase()) {
       updateTaskStatus(taskId, newStatus)
     }
 
@@ -407,7 +390,7 @@ export default function Page() {
 
       form.reset()
       setFeedback({ type: "success", message: "Tarefa criada com sucesso" })
-      fetchTasks()
+      mutate("/api/tasks")
     } catch (error) {
       console.error("Erro no formulário:", error)
       setIsCreateDialogOpen(false)
@@ -478,9 +461,9 @@ export default function Page() {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {statuses.map((status) => (
-                              <SelectItem key={status.id} value={status.name}>
-                                {status.name}
+                            {applicants.map((applicant) => (
+                              <SelectItem key={applicant.id} value={applicant.name}>
+                                {applicant.name}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -544,7 +527,9 @@ export default function Page() {
                   <KanbanColumn
                     key={status.id}
                     status={status}
-                    tasks={tasks.filter((t) => t.status === status.name)}
+                    tasks={tasks.filter(
+                      (t) => t.status.toLowerCase() === status.name.toLowerCase()
+                    )}
                   />
                 ))}
               </div>
@@ -556,7 +541,7 @@ export default function Page() {
         </TabsContent>
         <TabsContent value="list" className="pt-4">
           <div className="flex-1">
-            {loading ? (
+            {tasksLoading ? (
               <div className="flex h-24 items-center justify-center">Carregando...</div>
             ) : (
               <DataTable columns={columns} data={tasks} />

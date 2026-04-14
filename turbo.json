@@ -4,7 +4,7 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "env": ["DYNAMODB-TABLE-TASKS", "DYNAMODB-TABLE-PROJECTS", "AWS_REGION"],
+      "env": ["DYNAMODB-TABLE-TASKS", "DYNAMODB-TABLE-PROJECTS", "DYNAMODB-TABLE-STATUS", "DYNAMODB-TABLE-APPLICANT", "AWS_REGION"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
       "outputs": [".next/**", "!.next/cache/**"]
     },
