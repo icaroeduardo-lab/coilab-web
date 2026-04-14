@@ -32,13 +32,15 @@ const formSchema = z.object({
   applicant: z.string().min(2, {
     message: "O departamento que solicitou é obrigatório.",
   }),
+  project: z.string().min(2, {
+    message: "O projeto é obrigatório.",
+  }),
   priority: z.string().min(2, {
     message: "A prioridade é obrigatória.",
   }),
   description: z.string().min(2, {
-    message: "O projeto deve ter uma descrição obrigatória.",
+    message: "A tarefa deve ter uma descrição obrigatória.",
   }),
-  status: z.string().default("backlog"),
 })
 
 export default function Page() {
@@ -52,10 +54,10 @@ export default function Page() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: "",
+      project: "",
       applicant: "",
       priority: "",
       description: "",
-      status: "backlog",
     },
   })
 
@@ -72,11 +74,11 @@ export default function Page() {
       setIsCreateDialogOpen(false)
 
       if (!response.ok) {
-        throw new Error("Erro ao salvar o projeto")
+        throw new Error("Erro ao salvar a tarefa")
       }
 
       const data = await response.json()
-      console.log("Projeto salvo:", data)
+      console.log("Tarefa salva:", data)
       form.reset()
       setFeedback({ type: "success", message: "Tarefa criada com sucesso" })
     } catch (error) {
@@ -100,7 +102,7 @@ export default function Page() {
         </DialogTrigger>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Novo Projeto</DialogTitle>
+            <DialogTitle>Nova Tarefa</DialogTitle>
           </DialogHeader>
           <div className="py-4">
             <Form {...form}>
@@ -111,6 +113,19 @@ export default function Page() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Nome</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="project"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Projeto</FormLabel>
                       <FormControl>
                         <Input {...field} />
                       </FormControl>

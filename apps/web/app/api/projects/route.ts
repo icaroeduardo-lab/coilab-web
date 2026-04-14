@@ -3,17 +3,20 @@ import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
 import { NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
 
-const client = new DynamoDBClient({});
+const client = new DynamoDBClient({
+  region: process.env.AWS_REGION || "us-east-1",
+});
 const docClient = DynamoDBDocumentClient.from(client);
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { name, priority, description, applicant, status } = body;
+    const { name, project, priority, description, applicant } = body;
 
     const tableName = process.env["DYNAMODB-TABLE-PROJECTS"];
 
     if (!tableName) {
+      console.error("DYNAMODB-TABLE-PROJECTS environment variable is not set");
       return NextResponse.json(
         { error: "DYNAMODB-TABLE-PROJECTS environment variable is not set" },
         { status: 500 }
@@ -23,12 +26,15 @@ export async function POST(request: Request) {
     const item = {
       id: uuidv4(),
       name,
+      project,
       applicant,
       priority,
       description,
-      status: status || "backlog",
+      status: "backlog",
       createdAt: new Date().toISOString(),
     };
+
+    console.log("Attempting to save item to DynamoDB:", { tableName, item });
 
     await docClient.send(
       new PutCommand({
@@ -37,11 +43,17 @@ export async function POST(request: Request) {
       })
     );
 
+    console.log("Successfully saved item to DynamoDB");
     return NextResponse.json({ success: true, item }, { status: 201 });
-  } catch (error) {
-    console.error("Error saving to DynamoDB:", error);
+  } catch (error: any) {
+    console.error("Error saving to DynamoDB detail:", {
+      message: error.message,
+      code: error.code,
+      name: error.name,
+      stack: error.stack,
+    });
     return NextResponse.json(
-      { error: "Failed to save project" },
+      { error: "Failed to save project", details: error.message },
       { status: 500 }
     );
   }
