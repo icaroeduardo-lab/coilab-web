@@ -12,17 +12,10 @@ import {
   ArrowUp,
   ArrowDown,
   Minus,
-  FolderOpen,
-  LayoutDashboard,
 } from "lucide-react"
 
 import { Badge } from "@workspace/ui/components/badge"
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@workspace/ui/components/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@workspace/ui/components/card"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -205,36 +198,6 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Nav */}
-      <nav className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 px-6 py-3 flex items-center gap-6">
-        <span className="font-bold text-primary tracking-tight text-lg select-none">
-          COILAB
-        </span>
-        <div className="flex items-center gap-1">
-          <Link
-            href="/"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium bg-primary/10 text-primary"
-          >
-            <LayoutDashboard className="h-4 w-4" />
-            Dashboard
-          </Link>
-          <Link
-            href="/tasks"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-          >
-            <ListTodo className="h-4 w-4" />
-            Tarefas
-          </Link>
-          <Link
-            href="/projects"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-          >
-            <FolderOpen className="h-4 w-4" />
-            Projetos
-          </Link>
-        </div>
-      </nav>
-
       <div className="p-8 flex flex-col gap-8 max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex items-end justify-between">

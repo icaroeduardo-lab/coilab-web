@@ -3,6 +3,7 @@ import { Geist_Mono } from "next/font/google"
 
 import "@workspace/ui/globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
+import { Nav } from "@/components/nav"
 import { cn } from "@workspace/ui/lib/utils";
 
 const outfit = Outfit({ subsets: ['latin'], variable: '--font-sans' })
@@ -24,7 +25,10 @@ export default function RootLayout({
       className={cn("antialiased", fontMono.variable, "font-sans", outfit.variable)}
     >
       <body>
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <Nav />
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   )
