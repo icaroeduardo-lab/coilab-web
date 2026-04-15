@@ -202,7 +202,7 @@ function DiscoveryForm({
           Complexidade Inicial *
         </label>
         <Controller
-          control={form.control}
+          control={control}
           name="complexity"
           render={({ field }) => (
             <RadioGroup value={field.value} onValueChange={field.onChange}>
@@ -265,7 +265,7 @@ function DiscoveryForm({
             </label>
             <div className="space-y-3">
               <Controller
-                control={form.control}
+                control={control}
                 name="flow"
                 render={({ field }) => (
                   <RadioGroup value={field.value} onValueChange={field.onChange} disabled>
@@ -347,7 +347,7 @@ function DiscoveryForm({
               Frequência *
             </label>
             <Controller
-              control={form.control}
+              control={control}
               name="frequency"
               render={({ field }) => (
                 <RadioGroup value={field.value} onValueChange={field.onChange}>
@@ -452,7 +452,7 @@ function DiscoveryForm({
               Dependência Humana *
             </label>
             <Controller
-              control={form.control}
+              control={control}
               name="humanDependency"
               render={({ field }) => (
                 <RadioGroup value={field.value} onValueChange={field.onChange}>
@@ -549,7 +549,7 @@ function DiscoveryForm({
               Prioridade Institucional *
             </label>
             <Controller
-              control={form.control}
+              control={control}
               name="institutionalPriority"
               render={({ field }) => (
                 <RadioGroup value={field.value} onValueChange={field.onChange}>
@@ -580,7 +580,7 @@ function DiscoveryForm({
               Potencial de IA/Automação *
             </label>
             <Controller
-              control={form.control}
+              control={control}
               name="aiPotential"
               render={({ field }) => (
                 <RadioGroup value={field.value} onValueChange={field.onChange}>
