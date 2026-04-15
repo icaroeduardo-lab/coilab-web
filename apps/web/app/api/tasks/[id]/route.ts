@@ -53,7 +53,7 @@ export async function PATCH(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { status } = body;
+    const { status, phases } = body;
 
     const tableName = process.env["DYNAMODB-TABLE-TASKS"];
 
@@ -64,32 +64,46 @@ export async function PATCH(
       );
     }
 
-    if (!status) {
+    if (!status && !phases) {
       return NextResponse.json(
-        { error: "Status is required" },
+        { error: "Status or phases is required" },
         { status: 400 }
       );
+    }
+
+    let UpdateExpression = "set ";
+    const ExpressionAttributeNames: Record<string, string> = {};
+    const ExpressionAttributeValues: Record<string, any> = {};
+
+    if (status) {
+      UpdateExpression += "#status = :s";
+      ExpressionAttributeNames["#status"] = "status";
+      ExpressionAttributeValues[":s"] = status;
+    }
+
+    if (phases) {
+      if (status) {
+        UpdateExpression += ", ";
+      }
+      UpdateExpression += "phases = :p";
+      ExpressionAttributeValues[":p"] = phases;
     }
 
     await docClient.send(
       new UpdateCommand({
         TableName: tableName,
         Key: { id },
-        UpdateExpression: "set #status = :s",
-        ExpressionAttributeNames: {
-          "#status": "status",
-        },
-        ExpressionAttributeValues: {
-          ":s": status,
-        },
+        UpdateExpression,
+        ExpressionAttributeNames,
+        ExpressionAttributeValues,
       })
     );
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error("Error updating task status in DynamoDB:", error);
+    console.error("Error updating task in DynamoDB:", error);
     return NextResponse.json(
-      { error: "Failed to update task status" },
+      { error: "Failed to update task" },
       { status: 500 }
     );
   }

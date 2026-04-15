@@ -35,10 +35,17 @@ export async function GET() {
   }
 }
 
+const DEFAULT_PHASES = [
+  { id: "discovery", name: "Discovery", order: 0 },
+  { id: "design", name: "Design", order: 1 },
+  { id: "development", name: "Development", order: 2 },
+  { id: "testes", name: "Testes", order: 3 },
+];
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { name, project, priority, description, applicant } = body;
+    const { name, project, priority, description, applicant, phases: selectedPhases = [] } = body;
 
     const tableName = process.env["DYNAMODB-TABLE-TASKS"];
 
@@ -50,6 +57,14 @@ export async function POST(request: Request) {
       );
     }
 
+    const phases = DEFAULT_PHASES.map(p => ({
+      ...p,
+      enabled: selectedPhases.includes(p.id),
+      status: "not_started",
+      notes: "",
+      checklist: [],
+    }));
+
     const item = {
       id: uuidv4(),
       name,
@@ -59,6 +74,7 @@ export async function POST(request: Request) {
       description,
       status: "Backlog",
       createdAt: new Date().toISOString(),
+      phases,
     };
 
     console.log("Attempting to save item to DynamoDB:", { tableName, item });

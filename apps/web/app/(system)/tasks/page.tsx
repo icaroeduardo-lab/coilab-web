@@ -104,7 +104,19 @@ const formSchema = z.object({
   description: z.string().min(2, {
     message: "A tarefa deve ter uma descrição obrigatória.",
   }),
+  phases: z.array(z.string()),
 })
+
+type Phase = {
+  id: string
+  name: string
+  order: number
+  enabled: boolean
+  status: "not_started" | "in_progress" | "completed"
+  completedAt?: string
+  notes?: string
+  checklist: { id: string, label: string, completed: boolean }[]
+}
 
 type Task = {
   id: string
@@ -361,6 +373,7 @@ export default function Page() {
   const tasks = Array.isArray(tasksData) ? tasksData : []
   const statuses = Array.isArray(statusesData) ? statusesData : []
   const applicants = Array.isArray(applicantsData) ? applicantsData : []
+  const phases = statuses.filter(s => !["backlog", "concluído", "concluido"].includes(s.name.toLowerCase())).sort((a, b) => (a as any).order - (b as any).order)
 
   const [activeTask, setActiveTask] = useState<Task | null>(null)
 
@@ -381,6 +394,7 @@ export default function Page() {
       name: "",
       project: "",
       applicant: "",
+      phases: [],
       priority: "",
       description: "",
     },
@@ -609,6 +623,34 @@ export default function Page() {
                         <FormControl>
                           <Textarea {...field} />
                         </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="phases"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Fases da Tarefa</FormLabel>
+                        <div className="space-y-2">
+                          {phases.map((phase) => (
+                            <label key={phase.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={field.value.includes(phase.id)}
+                                onChange={(e) => {
+                                  const updated = e.target.checked
+                                    ? [...field.value, phase.id]
+                                    : field.value.filter((id: string) => id !== phase.id)
+                                  field.onChange(updated)
+                                }}
+                                className="rounded border-gray-300"
+                              />
+                              <span>{phase.name}</span>
+                            </label>
+                          ))}
+                        </div>
                         <FormMessage />
                       </FormItem>
                     )}
