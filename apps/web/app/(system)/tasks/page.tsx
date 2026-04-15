@@ -161,7 +161,7 @@ function SortableTaskCard({ task }: { task: Task }) {
       <div
         ref={setNodeRef}
         style={style}
-        className="opacity-30 h-[120px] min-h-[120px] items-center flex justify-center border-2 border-dashed border-primary rounded-xl"
+        className="h-30 min-h-30 items-center flex justify-center border-2 border-dashed border-primary/40 rounded-xl bg-primary/5"
       />
     )
   }
@@ -170,15 +170,10 @@ function SortableTaskCard({ task }: { task: Task }) {
     <Card
       ref={setNodeRef}
       style={style}
-      className="cursor-grab active:cursor-grabbing group relative"
+      {...attributes}
+      {...listeners}
+      className="cursor-grab active:cursor-grabbing group relative hover:border-primary/60 hover:shadow-sm transition-all duration-150"
     >
-      <div
-        {...attributes}
-        {...listeners}
-        className="absolute top-2 right-2 p-1 hover:bg-muted rounded text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity"
-      >
-        <GripVertical className="h-4 w-4" />
-      </div>
       <CardHeader className="p-4 pb-2">
         <CardTitle className="text-sm font-bold">{task.name}</CardTitle>
         <CardDescription className="text-xs">{task.project}</CardDescription>
@@ -189,10 +184,10 @@ function SortableTaskCard({ task }: { task: Task }) {
             {task.description}
           </p>
           <div className="flex flex-wrap gap-1 mb-2">
-            <span className="bg-secondary text-secondary-foreground px-2 py-0.5 rounded text-[10px] font-medium">
+            <span className="bg-primary/10 text-primary px-2 py-0.5 rounded-md text-[10px] font-semibold tracking-wide uppercase">
               {task.priority}
             </span>
-            <span className="bg-muted text-muted-foreground px-2 py-0.5 rounded text-[10px]">
+            <span className="bg-muted text-muted-foreground px-2 py-0.5 rounded-md text-[10px]">
               {task.applicant}
             </span>
           </div>
@@ -222,14 +217,14 @@ function KanbanColumn({
   })
 
   return (
-    <div className="flex flex-col gap-4 bg-muted/50 p-4 rounded-xl min-w-[300px] w-full">
+    <div className="flex flex-col gap-4 bg-muted/50 p-4 rounded-xl min-w-75 w-full border-t-2 border-t-primary/30">
       <div className="flex items-center justify-between px-2">
         <h3 className="font-semibold text-sm">{status.name}</h3>
-        <span className="bg-muted text-muted-foreground px-2 py-0.5 rounded-full text-xs">
+        <span className="bg-primary/10 text-primary px-2 py-0.5 rounded-full text-xs font-medium">
           {tasks.length}
         </span>
       </div>
-      <div ref={setNodeRef} className="flex flex-col gap-3 min-h-[200px]">
+      <div ref={setNodeRef} className="flex flex-col gap-3 min-h-50">
         <SortableContext
           items={tasks.map((t) => t.id)}
           strategy={verticalListSortingStrategy}
@@ -409,12 +404,15 @@ export default function Page() {
   return (
     <div className="flex flex-col gap-6 p-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Tarefas</h1>
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Tarefas</h1>
+          <div className="h-0.5 w-8 bg-primary rounded-full mt-1.5" />
+        </div>
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
           <DialogTrigger asChild>
-            <Button size={"lg"} className="px-4">
-              <Plus />
-              Novo
+            <Button size={"lg"} className="px-5 gap-2">
+              <Plus className="h-4 w-4" />
+              Nova tarefa
             </Button>
           </DialogTrigger>
           <DialogContent>
@@ -423,7 +421,7 @@ export default function Page() {
             </DialogHeader>
             <div className="py-4">
               <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                   <FormField
                     control={form.control}
                     name="name"
