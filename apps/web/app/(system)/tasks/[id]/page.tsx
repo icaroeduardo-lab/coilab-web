@@ -8,6 +8,7 @@ import { Button } from "@workspace/ui/components/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@workspace/ui/components/card"
 import { Badge } from "@workspace/ui/components/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@workspace/ui/components/tabs"
+import { DiscoveryPhaseTab } from "./discovery-form"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -20,6 +21,7 @@ type Phase = {
   completedAt?: string
   notes?: string
   checklist: { id: string; label: string; completed: boolean }[]
+  discoveryData?: any
 }
 
 type Task = {
@@ -477,11 +479,19 @@ export default function TaskDetailPage() {
             <TabsContent key={phase.id} value={phase.id}>
               <Card>
                 <CardContent className="pt-6">
-                  <PhaseTab
-                    phase={phase}
-                    taskId={id}
-                    onPhaseUpdate={setPhases}
-                  />
+                  {phase.id === "discovery" ? (
+                    <DiscoveryPhaseTab
+                      phase={phase}
+                      taskId={id}
+                      onPhaseUpdate={setPhases}
+                    />
+                  ) : (
+                    <PhaseTab
+                      phase={phase}
+                      taskId={id}
+                      onPhaseUpdate={setPhases}
+                    />
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
