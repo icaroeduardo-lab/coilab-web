@@ -4,7 +4,20 @@ import { useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
-import { Plus, CheckCircle2, AlertCircle, GripVertical } from "lucide-react"
+import {
+  Plus,
+  CheckCircle2,
+  AlertCircle,
+  ArrowUp,
+  ArrowDown,
+  Minus,
+  Clock,
+  CircleDot,
+  CircleCheck,
+  CircleX,
+  CalendarDays,
+  User,
+} from "lucide-react"
 import { ColumnDef } from "@tanstack/react-table"
 import useSWR, { useSWRConfig } from "swr"
 import {
@@ -66,6 +79,9 @@ import {
   TabsList,
   TabsTrigger,
 } from "@workspace/ui/components/tabs"
+import {
+  Badge
+} from "@workspace/ui/components/badge"
 import { DataTable } from "@/components/data-table"
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json())
@@ -104,33 +120,112 @@ type Option = {
   name: string
 }
 
+function PriorityBadge({ priority }: { priority: string }) {
+  const p = priority.toLowerCase()
+  if (p === "alta" || p === "high" || p === "urgente" || p === "crítica") {
+    return (
+      <Badge variant="destructive" className="gap-1">
+        <ArrowUp />
+        {priority}
+      </Badge>
+    )
+  }
+  if (p === "média" || p === "media" || p === "normal" || p === "medium") {
+    return (
+      <Badge className="gap-1 bg-amber-100 text-amber-700 border border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800">
+        <Minus />
+        {priority}
+      </Badge>
+    )
+  }
+  return (
+    <Badge variant="outline" className="gap-1 text-emerald-700 border-emerald-200 bg-emerald-50 dark:text-emerald-400 dark:border-emerald-800 dark:bg-emerald-950/30">
+      <ArrowDown />
+      {priority}
+    </Badge>
+  )
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const s = status.toLowerCase()
+  if (s.includes("conclu") || s.includes("done") || s.includes("feito") || s.includes("finaliz")) {
+    return (
+      <Badge className="gap-1 bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800">
+        <CircleCheck />
+        {status}
+      </Badge>
+    )
+  }
+  if (s.includes("andamento") || s.includes("progress") || s.includes("fazendo") || s.includes("execu")) {
+    return (
+      <Badge className="gap-1 bg-sky-100 text-sky-700 border border-sky-200 dark:bg-sky-950/30 dark:text-sky-400 dark:border-sky-800">
+        <CircleDot />
+        {status}
+      </Badge>
+    )
+  }
+  if (s.includes("bloqueado") || s.includes("blocked") || s.includes("impedido")) {
+    return (
+      <Badge variant="destructive" className="gap-1">
+        <CircleX />
+        {status}
+      </Badge>
+    )
+  }
+  return (
+    <Badge variant="secondary" className="gap-1">
+      <Clock />
+      {status}
+    </Badge>
+  )
+}
+
 const columns: ColumnDef<Task>[] = [
   {
     accessorKey: "name",
     header: "Nome",
+    cell: ({ row }) => (
+      <span className="font-medium text-sm">{row.getValue("name")}</span>
+    ),
   },
   {
     accessorKey: "project",
     header: "Projeto",
+    cell: ({ row }) => (
+      <span className="text-sm text-muted-foreground">{row.getValue("project")}</span>
+    ),
   },
   {
     accessorKey: "applicant",
     header: "Solicitante",
+    cell: ({ row }) => (
+      <div className="flex items-center gap-1.5">
+        <User className="h-3.5 w-3.5 text-muted-foreground" />
+        <span className="text-sm">{row.getValue("applicant")}</span>
+      </div>
+    ),
   },
   {
     accessorKey: "priority",
     header: "Prioridade",
+    cell: ({ row }) => <PriorityBadge priority={row.getValue("priority")} />,
   },
   {
     accessorKey: "status",
     header: "Status",
+    cell: ({ row }) => <StatusBadge status={row.getValue("status")} />,
   },
   {
     accessorKey: "createdAt",
     header: "Criado em",
     cell: ({ row }) => {
       const date = new Date(row.getValue("createdAt"))
-      return date.toLocaleDateString("pt-BR")
+      return (
+        <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+          <CalendarDays className="h-3.5 w-3.5" />
+          {date.toLocaleDateString("pt-BR")}
+        </div>
+      )
     },
   },
 ]
@@ -161,7 +256,7 @@ function SortableTaskCard({ task }: { task: Task }) {
       <div
         ref={setNodeRef}
         style={style}
-        className="opacity-30 h-[120px] min-h-[120px] items-center flex justify-center border-2 border-dashed border-primary rounded-xl"
+        className="h-30 min-h-30 items-center flex justify-center border-2 border-dashed border-primary/40 rounded-xl bg-primary/5"
       />
     )
   }
@@ -170,15 +265,10 @@ function SortableTaskCard({ task }: { task: Task }) {
     <Card
       ref={setNodeRef}
       style={style}
-      className="cursor-grab active:cursor-grabbing group relative"
+      {...attributes}
+      {...listeners}
+      className="cursor-grab active:cursor-grabbing group relative hover:border-primary/60 hover:shadow-sm transition-all duration-150"
     >
-      <div
-        {...attributes}
-        {...listeners}
-        className="absolute top-2 right-2 p-1 hover:bg-muted rounded text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity"
-      >
-        <GripVertical className="h-4 w-4" />
-      </div>
       <CardHeader className="p-4 pb-2">
         <CardTitle className="text-sm font-bold">{task.name}</CardTitle>
         <CardDescription className="text-xs">{task.project}</CardDescription>
@@ -189,12 +279,11 @@ function SortableTaskCard({ task }: { task: Task }) {
             {task.description}
           </p>
           <div className="flex flex-wrap gap-1 mb-2">
-            <span className="bg-secondary text-secondary-foreground px-2 py-0.5 rounded text-[10px] font-medium">
-              {task.priority}
-            </span>
-            <span className="bg-muted text-muted-foreground px-2 py-0.5 rounded text-[10px]">
+            <PriorityBadge priority={task.priority} />
+            <Badge variant="outline" className="gap-1">
+              <User />
               {task.applicant}
-            </span>
+            </Badge>
           </div>
           <div className="flex items-center justify-between text-[10px] text-muted-foreground border-t pt-2">
             <span>Criado em:</span>
@@ -222,14 +311,14 @@ function KanbanColumn({
   })
 
   return (
-    <div className="flex flex-col gap-4 bg-muted/50 p-4 rounded-xl min-w-[300px] w-full">
+    <div className="flex flex-col gap-4 bg-muted/50 p-4 rounded-xl min-w-75 w-full border-t-2 border-t-primary/30">
       <div className="flex items-center justify-between px-2">
         <h3 className="font-semibold text-sm">{status.name}</h3>
-        <span className="bg-muted text-muted-foreground px-2 py-0.5 rounded-full text-xs">
+        <span className="bg-primary/10 text-primary px-2 py-0.5 rounded-full text-xs font-medium">
           {tasks.length}
         </span>
       </div>
-      <div ref={setNodeRef} className="flex flex-col gap-3 min-h-[200px]">
+      <div ref={setNodeRef} className="flex flex-col gap-3 min-h-50">
         <SortableContext
           items={tasks.map((t) => t.id)}
           strategy={verticalListSortingStrategy}
@@ -409,12 +498,15 @@ export default function Page() {
   return (
     <div className="flex flex-col gap-6 p-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Tarefas</h1>
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Tarefas</h1>
+          <div className="h-0.5 w-8 bg-primary rounded-full mt-1.5" />
+        </div>
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
           <DialogTrigger asChild>
-            <Button size={"lg"} className="px-4">
-              <Plus />
-              Novo
+            <Button size={"lg"} className="px-5 gap-2">
+              <Plus className="h-4 w-4" />
+              Nova tarefa
             </Button>
           </DialogTrigger>
           <DialogContent>
@@ -423,7 +515,7 @@ export default function Page() {
             </DialogHeader>
             <div className="py-4">
               <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                   <FormField
                     control={form.control}
                     name="name"
