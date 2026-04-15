@@ -129,6 +129,7 @@ function DiscoveryForm({
     register,
     handleSubmit,
     watch,
+    control,
     formState: { errors },
   } = useForm({
     resolver: zodResolver(schema) as any,
