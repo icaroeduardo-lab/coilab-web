@@ -36,6 +36,7 @@ type Task = {
   createdAt: string
   description?: string
   phases?: Phase[]
+  flows?: { id: string; name: string }[]
 }
 
 export type DiscoveryData = {
@@ -92,20 +93,35 @@ function DiscoveryForm({
   phase,
   taskId,
   initialData,
+  taskData: externalTaskData,
   onSave,
   onCancel,
 }: {
   phase: Phase
   taskId: string
   initialData?: DiscoveryData
+  taskData?: Task
   onSave: () => void
   onCancel: () => void
 }) {
   const [isLoading, setIsLoading] = useState(false)
-  const { data: taskData, mutate } = useSWR<Task>(`/api/tasks/${taskId}`, fetcher)
+  const { data: fetchedTaskData, mutate } = useSWR<Task>(`/api/tasks/${taskId}`, fetcher)
+  const taskData = externalTaskData || fetchedTaskData
 
   const defaultComplexity = initialData?.complexity || "small"
   const schema = defaultComplexity === "complex" ? complexSchema : baseSchema
+
+  // Mapear flows da tarefa para o campo flow (interno, coppe, externo)
+  const getDefaultFlow = () => {
+    if (initialData?.flow) return initialData.flow
+    if (taskData?.flows && taskData.flows.length > 0) {
+      const flowName = taskData.flows[0].name.toLowerCase()
+      if (flowName.includes("coppe")) return "coppe"
+      if (flowName.includes("externo")) return "externo"
+      // Adicionar mais mapeamentos conforme necessário
+    }
+    return "interno"
+  }
 
   const {
     register,
@@ -115,12 +131,14 @@ function DiscoveryForm({
   } = useForm({
     resolver: zodResolver(schema) as any,
     defaultValues: initialData || {
+      projectName: taskData?.name || "",
+      sector: taskData?.applicant || "",
       complexity: "small",
       humanDependency: "media",
       frequency: "eventual",
       institutionalPriority: "media",
       aiPotential: "medio",
-      flow: "interno",
+      flow: getDefaultFlow(),
     },
   })
 
@@ -227,12 +245,13 @@ function DiscoveryForm({
 
           <div>
             <label className="text-sm font-medium block mb-1">
-              Setor/Área *
+              Setor/Área * <span className="text-xs text-muted-foreground">(preenchido automaticamente)</span>
             </label>
             <input
               {...register("sector")}
               placeholder="Ex: RH, Financeiro, Operações"
-              className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              readOnly
+              className="w-full px-3 py-2 border border-input rounded-md bg-muted text-sm focus:outline-none focus:ring-2 focus:ring-primary cursor-not-allowed"
             />
             {errors.sector && (
               <p className="text-xs text-destructive mt-1">
@@ -243,16 +262,31 @@ function DiscoveryForm({
 
           <div>
             <label className="text-sm font-medium block mb-1">
-              Fluxo Previsto *
+              Fluxo Previsto * <span className="text-xs text-muted-foreground">(preenchido automaticamente)</span>
             </label>
-            <select
-              {...register("flow")}
-              className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-            >
-              <option value="interno">Interno</option>
-              <option value="coppe">COPPE</option>
-              <option value="externo">Externo</option>
-            </select>
+            <div className="space-y-2">
+              <select
+                {...register("flow")}
+                disabled
+                className="w-full px-3 py-2 border border-input rounded-md bg-muted text-sm focus:outline-none focus:ring-2 focus:ring-primary cursor-not-allowed"
+              >
+                <option value="interno">Interno</option>
+                <option value="coppe">COPPE</option>
+                <option value="externo">Externo</option>
+              </select>
+              {taskData?.flows && taskData.flows.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {taskData.flows.map((flow) => (
+                    <span
+                      key={flow.id}
+                      className="inline-block px-2 py-1 text-xs font-medium bg-primary/10 text-primary rounded-full border border-primary/30"
+                    >
+                      {flow.name}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
             {errors.flow && (
               <p className="text-xs text-destructive mt-1">
                 {errors.flow.message}
@@ -794,6 +828,7 @@ export function DiscoveryPhaseTab({
         phase={phase}
         taskId={taskId}
         initialData={phase.discoveryData}
+        taskData={taskData}
         onSave={() => {
           setIsFormOpen(false)
           mutate()
