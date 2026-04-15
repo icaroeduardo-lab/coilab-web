@@ -25,7 +25,8 @@ export async function GET() {
       })
     );
 
-    return NextResponse.json(Items || []);
+    const sorted = (Items || []).sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    return NextResponse.json(sorted);
   } catch (error: any) {
     console.error("Error fetching status from DynamoDB:", error);
     return NextResponse.json(
