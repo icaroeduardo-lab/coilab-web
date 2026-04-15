@@ -373,7 +373,13 @@ export default function Page() {
   const tasks = Array.isArray(tasksData) ? tasksData : []
   const statuses = Array.isArray(statusesData) ? statusesData : []
   const applicants = Array.isArray(applicantsData) ? applicantsData : []
-  const phases = statuses.filter(s => !["backlog", "concluído", "concluido"].includes(s.name.toLowerCase())).sort((a, b) => (a as any).order - (b as any).order)
+  const DEFAULT_PHASES = [
+    { id: "discovery", name: "Discovery" },
+    { id: "design", name: "Design" },
+    { id: "development", name: "Development" },
+    { id: "testes", name: "Testes" },
+  ]
+  const phases = DEFAULT_PHASES
 
   const [activeTask, setActiveTask] = useState<Task | null>(null)
 
