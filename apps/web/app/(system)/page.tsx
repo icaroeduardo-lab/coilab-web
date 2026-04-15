@@ -139,7 +139,8 @@ function priorityBarClass(priority: string) {
 }
 
 export default function DashboardPage() {
-  const { data: tasks = [] } = useSWR<Task[]>("/api/tasks", fetcher)
+  const { data } = useSWR<Task[]>("/api/tasks", fetcher)
+  const tasks = Array.isArray(data) ? data : []
 
   const stats = useMemo(() => {
     const total = tasks.length

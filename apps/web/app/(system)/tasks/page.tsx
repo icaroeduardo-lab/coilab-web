@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
@@ -17,6 +18,7 @@ import {
   CircleX,
   CalendarDays,
   User,
+  Eye,
 } from "lucide-react"
 import { ColumnDef } from "@tanstack/react-table"
 import useSWR, { useSWRConfig } from "swr"
@@ -185,7 +187,12 @@ const columns: ColumnDef<Task>[] = [
     accessorKey: "name",
     header: "Nome",
     cell: ({ row }) => (
-      <span className="font-medium text-sm">{row.getValue("name")}</span>
+      <Link
+        href={`/tasks/${row.original.id}`}
+        className="font-medium text-sm text-primary hover:underline"
+      >
+        {row.getValue("name")}
+      </Link>
     ),
   },
   {
@@ -269,6 +276,13 @@ function SortableTaskCard({ task }: { task: Task }) {
       {...listeners}
       className="cursor-grab active:cursor-grabbing group relative hover:border-primary/60 hover:shadow-sm transition-all duration-150"
     >
+      <Link
+        href={`/tasks/${task.id}`}
+        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150 p-1.5 hover:bg-primary/10 rounded text-primary shrink-0"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <Eye className="h-4 w-4" />
+      </Link>
       <CardHeader className="p-4 pb-2">
         <CardTitle className="text-sm font-bold">{task.name}</CardTitle>
         <CardDescription className="text-xs">{task.project}</CardDescription>
@@ -340,9 +354,13 @@ export default function Page() {
     message: string
   } | null>(null)
   
-  const { data: tasks = [], isLoading: tasksLoading } = useSWR<Task[]>("/api/tasks", fetcher)
-  const { data: statuses = [] } = useSWR<Option[]>("/api/status", fetcher)
-  const { data: applicants = [] } = useSWR<Option[]>("/api/applicants", fetcher)
+  const { data: tasksData, isLoading: tasksLoading } = useSWR<Task[]>("/api/tasks", fetcher)
+  const { data: statusesData } = useSWR<Option[]>("/api/status", fetcher)
+  const { data: applicantsData } = useSWR<Option[]>("/api/applicants", fetcher)
+
+  const tasks = Array.isArray(tasksData) ? tasksData : []
+  const statuses = Array.isArray(statusesData) ? statusesData : []
+  const applicants = Array.isArray(applicantsData) ? applicantsData : []
 
   const [activeTask, setActiveTask] = useState<Task | null>(null)
 
