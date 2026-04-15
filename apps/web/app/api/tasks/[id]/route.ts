@@ -72,32 +72,34 @@ export async function PATCH(
     }
 
     let UpdateExpression = "set ";
-    const ExpressionAttributeNames: Record<string, string> = {};
     const ExpressionAttributeValues: Record<string, any> = {};
+    let parts: string[] = [];
 
     if (status) {
-      UpdateExpression += "#status = :s";
-      ExpressionAttributeNames["#status"] = "status";
+      parts.push("#status = :s");
       ExpressionAttributeValues[":s"] = status;
     }
 
     if (phases) {
-      if (status) {
-        UpdateExpression += ", ";
-      }
-      UpdateExpression += "phases = :p";
+      parts.push("phases = :p");
       ExpressionAttributeValues[":p"] = phases;
     }
 
-    await docClient.send(
-      new UpdateCommand({
-        TableName: tableName,
-        Key: { id },
-        UpdateExpression,
-        ExpressionAttributeNames,
-        ExpressionAttributeValues,
-      })
-    );
+    UpdateExpression += parts.join(", ");
+
+    const updateParams: any = {
+      TableName: tableName,
+      Key: { id },
+      UpdateExpression,
+      ExpressionAttributeValues,
+    };
+
+    // Only include ExpressionAttributeNames if it has content
+    if (status) {
+      updateParams.ExpressionAttributeNames = { "#status": "status" };
+    }
+
+    await docClient.send(new UpdateCommand(updateParams));
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
