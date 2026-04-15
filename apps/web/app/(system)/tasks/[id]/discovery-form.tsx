@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { useForm } from "react-hook-form"
+import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { Button } from "@workspace/ui/components/button"
@@ -11,6 +11,8 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@workspace/ui/components/accordion"
+import { RadioGroup, RadioGroupItem } from "@workspace/ui/components/radio-group"
+import { Label } from "@workspace/ui/components/label"
 import { Loader2 } from "lucide-react"
 import useSWR from "swr"
 
@@ -195,29 +197,25 @@ function DiscoveryForm({
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
       <div>
-        <label className="text-sm font-semibold block mb-2">
+        <label className="text-sm font-semibold block mb-3">
           Complexidade Inicial *
         </label>
-        <div className="flex gap-4">
-          <label className="flex items-center gap-2">
-            <input
-              type="radio"
-              value="small"
-              {...register("complexity")}
-              className="rounded"
-            />
-            <span className="text-sm">Pequena</span>
-          </label>
-          <label className="flex items-center gap-2">
-            <input
-              type="radio"
-              value="complex"
-              {...register("complexity")}
-              className="rounded"
-            />
-            <span className="text-sm">Média/Complexa</span>
-          </label>
-        </div>
+        <Controller
+          control={form.control}
+          name="complexity"
+          render={({ field }) => (
+            <RadioGroup value={field.value} onValueChange={field.onChange}>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="small" id="complexity-small" />
+                <Label htmlFor="complexity-small" className="font-normal cursor-pointer">Pequena</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="complex" id="complexity-complex" />
+                <Label htmlFor="complexity-complex" className="font-normal cursor-pointer">Média/Complexa</Label>
+              </div>
+            </RadioGroup>
+          )}
+        />
         {errors.complexity && (
           <p className="text-xs text-destructive mt-1">{errors.complexity.message}</p>
         )}
@@ -261,19 +259,30 @@ function DiscoveryForm({
           </div>
 
           <div>
-            <label className="text-sm font-medium block mb-1">
+            <label className="text-sm font-medium block mb-3">
               Fluxo Previsto * <span className="text-xs text-muted-foreground">(preenchido automaticamente)</span>
             </label>
-            <div className="space-y-2">
-              <select
-                {...register("flow")}
-                disabled
-                className="w-full px-3 py-2 border border-input rounded-md bg-muted text-sm focus:outline-none focus:ring-2 focus:ring-primary cursor-not-allowed"
-              >
-                <option value="interno">Interno</option>
-                <option value="coppe">COPPE</option>
-                <option value="externo">Externo</option>
-              </select>
+            <div className="space-y-3">
+              <Controller
+                control={form.control}
+                name="flow"
+                render={({ field }) => (
+                  <RadioGroup value={field.value} onValueChange={field.onChange} disabled>
+                    <div className="flex items-center space-x-2 opacity-50">
+                      <RadioGroupItem value="interno" id="flow-interno" disabled />
+                      <Label htmlFor="flow-interno" className="font-normal cursor-not-allowed">Interno</Label>
+                    </div>
+                    <div className="flex items-center space-x-2 opacity-50">
+                      <RadioGroupItem value="coppe" id="flow-coppe" disabled />
+                      <Label htmlFor="flow-coppe" className="font-normal cursor-not-allowed">COPPE</Label>
+                    </div>
+                    <div className="flex items-center space-x-2 opacity-50">
+                      <RadioGroupItem value="externo" id="flow-externo" disabled />
+                      <Label htmlFor="flow-externo" className="font-normal cursor-not-allowed">Externo</Label>
+                    </div>
+                  </RadioGroup>
+                )}
+              />
               {taskData?.flows && taskData.flows.length > 0 && (
                 <div className="flex flex-wrap gap-2">
                   {taskData.flows.map((flow) => (
@@ -333,18 +342,33 @@ function DiscoveryForm({
           </div>
 
           <div>
-            <label className="text-sm font-medium block mb-1">
+            <label className="text-sm font-medium block mb-3">
               Frequência *
             </label>
-            <select
-              {...register("frequency")}
-              className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-            >
-              <option value="diario">Diário</option>
-              <option value="semanal">Semanal</option>
-              <option value="mensal">Mensal</option>
-              <option value="eventual">Eventual</option>
-            </select>
+            <Controller
+              control={form.control}
+              name="frequency"
+              render={({ field }) => (
+                <RadioGroup value={field.value} onValueChange={field.onChange}>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="diario" id="frequency-diario" />
+                    <Label htmlFor="frequency-diario" className="font-normal cursor-pointer">Diário</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="semanal" id="frequency-semanal" />
+                    <Label htmlFor="frequency-semanal" className="font-normal cursor-pointer">Semanal</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="mensal" id="frequency-mensal" />
+                    <Label htmlFor="frequency-mensal" className="font-normal cursor-pointer">Mensal</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="eventual" id="frequency-eventual" />
+                    <Label htmlFor="frequency-eventual" className="font-normal cursor-pointer">Eventual</Label>
+                  </div>
+                </RadioGroup>
+              )}
+            />
             {errors.frequency && (
               <p className="text-xs text-destructive mt-1">
                 {errors.frequency.message}
@@ -423,17 +447,29 @@ function DiscoveryForm({
           </div>
 
           <div>
-            <label className="text-sm font-medium block mb-1">
+            <label className="text-sm font-medium block mb-3">
               Dependência Humana *
             </label>
-            <select
-              {...register("humanDependency")}
-              className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-            >
-              <option value="alta">Alta</option>
-              <option value="media">Média</option>
-              <option value="baixa">Baixa</option>
-            </select>
+            <Controller
+              control={form.control}
+              name="humanDependency"
+              render={({ field }) => (
+                <RadioGroup value={field.value} onValueChange={field.onChange}>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="alta" id="humanDependency-alta" />
+                    <Label htmlFor="humanDependency-alta" className="font-normal cursor-pointer">Alta</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="media" id="humanDependency-media" />
+                    <Label htmlFor="humanDependency-media" className="font-normal cursor-pointer">Média</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="baixa" id="humanDependency-baixa" />
+                    <Label htmlFor="humanDependency-baixa" className="font-normal cursor-pointer">Baixa</Label>
+                  </div>
+                </RadioGroup>
+              )}
+            />
             {errors.humanDependency && (
               <p className="text-xs text-destructive mt-1">
                 {errors.humanDependency.message}
@@ -508,17 +544,29 @@ function DiscoveryForm({
         <h3 className="text-sm font-semibold mb-4">5. Avaliação do Analista</h3>
         <div className="space-y-4">
           <div>
-            <label className="text-sm font-medium block mb-1">
+            <label className="text-sm font-medium block mb-3">
               Prioridade Institucional *
             </label>
-            <select
-              {...register("institutionalPriority")}
-              className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-            >
-              <option value="alta">Alta</option>
-              <option value="media">Média</option>
-              <option value="baixa">Baixa</option>
-            </select>
+            <Controller
+              control={form.control}
+              name="institutionalPriority"
+              render={({ field }) => (
+                <RadioGroup value={field.value} onValueChange={field.onChange}>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="alta" id="institutionalPriority-alta" />
+                    <Label htmlFor="institutionalPriority-alta" className="font-normal cursor-pointer">Alta</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="media" id="institutionalPriority-media" />
+                    <Label htmlFor="institutionalPriority-media" className="font-normal cursor-pointer">Média</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="baixa" id="institutionalPriority-baixa" />
+                    <Label htmlFor="institutionalPriority-baixa" className="font-normal cursor-pointer">Baixa</Label>
+                  </div>
+                </RadioGroup>
+              )}
+            />
             {errors.institutionalPriority && (
               <p className="text-xs text-destructive mt-1">
                 {errors.institutionalPriority.message}
@@ -527,17 +575,29 @@ function DiscoveryForm({
           </div>
 
           <div>
-            <label className="text-sm font-medium block mb-1">
+            <label className="text-sm font-medium block mb-3">
               Potencial de IA/Automação *
             </label>
-            <select
-              {...register("aiPotential")}
-              className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-            >
-              <option value="alto">Alto</option>
-              <option value="medio">Médio</option>
-              <option value="baixo">Baixo</option>
-            </select>
+            <Controller
+              control={form.control}
+              name="aiPotential"
+              render={({ field }) => (
+                <RadioGroup value={field.value} onValueChange={field.onChange}>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="alto" id="aiPotential-alto" />
+                    <Label htmlFor="aiPotential-alto" className="font-normal cursor-pointer">Alto</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="medio" id="aiPotential-medio" />
+                    <Label htmlFor="aiPotential-medio" className="font-normal cursor-pointer">Médio</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="baixo" id="aiPotential-baixo" />
+                    <Label htmlFor="aiPotential-baixo" className="font-normal cursor-pointer">Baixo</Label>
+                  </div>
+                </RadioGroup>
+              )}
+            />
             {errors.aiPotential && (
               <p className="text-xs text-destructive mt-1">
                 {errors.aiPotential.message}
