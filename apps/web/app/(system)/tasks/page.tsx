@@ -105,6 +105,7 @@ const formSchema = z.object({
     message: "A tarefa deve ter uma descrição obrigatória.",
   }),
   phases: z.array(z.string()),
+  flows: z.array(z.string()).optional(),
 })
 
 type Phase = {
@@ -369,10 +370,12 @@ export default function Page() {
   const { data: tasksData, isLoading: tasksLoading } = useSWR<Task[]>("/api/tasks", fetcher)
   const { data: statusesData } = useSWR<Option[]>("/api/status", fetcher)
   const { data: applicantsData } = useSWR<Option[]>("/api/applicants", fetcher)
+  const { data: flowsData } = useSWR<Option[]>("/api/flows", fetcher)
 
   const tasks = Array.isArray(tasksData) ? tasksData : []
   const statuses = Array.isArray(statusesData) ? statusesData : []
   const applicants = Array.isArray(applicantsData) ? applicantsData : []
+  const flows = Array.isArray(flowsData) ? flowsData : []
   const DEFAULT_PHASES = [
     { id: "discovery", name: "Discovery" },
     { id: "design", name: "Design" },
@@ -403,6 +406,7 @@ export default function Page() {
       phases: [],
       priority: "",
       description: "",
+      flows: [],
     },
   })
 
@@ -656,6 +660,38 @@ export default function Page() {
                               <span>{phase.name}</span>
                             </label>
                           ))}
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="flows"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Fluxo Previsto</FormLabel>
+                        <div className="space-y-2">
+                          {flows.length === 0 ? (
+                            <p className="text-sm text-muted-foreground">Nenhum fluxo disponível</p>
+                          ) : (
+                            flows.map((flow) => (
+                              <label key={flow.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={field.value?.includes(flow.id) || false}
+                                  onChange={(e) => {
+                                    const updated = e.target.checked
+                                      ? [...(field.value || []), flow.id]
+                                      : (field.value || []).filter((id: string) => id !== flow.id)
+                                    field.onChange(updated)
+                                  }}
+                                  className="rounded border-gray-300"
+                                />
+                                <span>{flow.name}</span>
+                              </label>
+                            ))
+                          )}
                         </div>
                         <FormMessage />
                       </FormItem>

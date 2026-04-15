@@ -45,9 +45,10 @@ const DEFAULT_PHASES = [
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { name, project, priority, description, applicant, phases: selectedPhases = [] } = body;
+    const { name, project, priority, description, applicant, phases: selectedPhases = [], flows: selectedFlows = [] } = body;
 
     const tableName = process.env["DYNAMODB-TABLE-TASKS"];
+    const flowsTableName = process.env["DYNAMODB-TABLE-FLOWS"] || "coilab-flow";
 
     if (!tableName) {
       console.error("DYNAMODB-TABLE-TASKS environment variable is not set");
@@ -65,6 +66,24 @@ export async function POST(request: Request) {
       checklist: [],
     }));
 
+    // Fetch flow data from coilab-flow table
+    let flowsData: any[] = [];
+    if (selectedFlows.length > 0) {
+      try {
+        const { Items } = await docClient.send(
+          new ScanCommand({
+            TableName: flowsTableName,
+          })
+        );
+
+        flowsData = (Items || []).filter((item: any) => selectedFlows.includes(item.id));
+      } catch (error) {
+        console.warn("Could not fetch flows data:", error);
+        // Still create the task even if flows fetch fails
+        flowsData = selectedFlows.map(id => ({ id, name: id }));
+      }
+    }
+
     const item = {
       id: uuidv4(),
       name,
@@ -75,6 +94,7 @@ export async function POST(request: Request) {
       status: "Backlog",
       createdAt: new Date().toISOString(),
       phases,
+      flows: flowsData,
     };
 
     console.log("Attempting to save item to DynamoDB:", { tableName, item });
