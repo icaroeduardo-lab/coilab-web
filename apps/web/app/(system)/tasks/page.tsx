@@ -4,7 +4,20 @@ import { useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
-import { Plus, CheckCircle2, AlertCircle, GripVertical } from "lucide-react"
+import {
+  Plus,
+  CheckCircle2,
+  AlertCircle,
+  ArrowUp,
+  ArrowDown,
+  Minus,
+  Clock,
+  CircleDot,
+  CircleCheck,
+  CircleX,
+  CalendarDays,
+  User,
+} from "lucide-react"
 import { ColumnDef } from "@tanstack/react-table"
 import useSWR, { useSWRConfig } from "swr"
 import {
@@ -66,6 +79,9 @@ import {
   TabsList,
   TabsTrigger,
 } from "@workspace/ui/components/tabs"
+import {
+  Badge
+} from "@workspace/ui/components/badge"
 import { DataTable } from "@/components/data-table"
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json())
@@ -104,33 +120,112 @@ type Option = {
   name: string
 }
 
+function PriorityBadge({ priority }: { priority: string }) {
+  const p = priority.toLowerCase()
+  if (p === "alta" || p === "high" || p === "urgente" || p === "crítica") {
+    return (
+      <Badge variant="destructive" className="gap-1">
+        <ArrowUp />
+        {priority}
+      </Badge>
+    )
+  }
+  if (p === "média" || p === "media" || p === "normal" || p === "medium") {
+    return (
+      <Badge className="gap-1 bg-amber-100 text-amber-700 border border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800">
+        <Minus />
+        {priority}
+      </Badge>
+    )
+  }
+  return (
+    <Badge variant="outline" className="gap-1 text-emerald-700 border-emerald-200 bg-emerald-50 dark:text-emerald-400 dark:border-emerald-800 dark:bg-emerald-950/30">
+      <ArrowDown />
+      {priority}
+    </Badge>
+  )
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const s = status.toLowerCase()
+  if (s.includes("conclu") || s.includes("done") || s.includes("feito") || s.includes("finaliz")) {
+    return (
+      <Badge className="gap-1 bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800">
+        <CircleCheck />
+        {status}
+      </Badge>
+    )
+  }
+  if (s.includes("andamento") || s.includes("progress") || s.includes("fazendo") || s.includes("execu")) {
+    return (
+      <Badge className="gap-1 bg-sky-100 text-sky-700 border border-sky-200 dark:bg-sky-950/30 dark:text-sky-400 dark:border-sky-800">
+        <CircleDot />
+        {status}
+      </Badge>
+    )
+  }
+  if (s.includes("bloqueado") || s.includes("blocked") || s.includes("impedido")) {
+    return (
+      <Badge variant="destructive" className="gap-1">
+        <CircleX />
+        {status}
+      </Badge>
+    )
+  }
+  return (
+    <Badge variant="secondary" className="gap-1">
+      <Clock />
+      {status}
+    </Badge>
+  )
+}
+
 const columns: ColumnDef<Task>[] = [
   {
     accessorKey: "name",
     header: "Nome",
+    cell: ({ row }) => (
+      <span className="font-medium text-sm">{row.getValue("name")}</span>
+    ),
   },
   {
     accessorKey: "project",
     header: "Projeto",
+    cell: ({ row }) => (
+      <span className="text-sm text-muted-foreground">{row.getValue("project")}</span>
+    ),
   },
   {
     accessorKey: "applicant",
     header: "Solicitante",
+    cell: ({ row }) => (
+      <div className="flex items-center gap-1.5">
+        <User className="h-3.5 w-3.5 text-muted-foreground" />
+        <span className="text-sm">{row.getValue("applicant")}</span>
+      </div>
+    ),
   },
   {
     accessorKey: "priority",
     header: "Prioridade",
+    cell: ({ row }) => <PriorityBadge priority={row.getValue("priority")} />,
   },
   {
     accessorKey: "status",
     header: "Status",
+    cell: ({ row }) => <StatusBadge status={row.getValue("status")} />,
   },
   {
     accessorKey: "createdAt",
     header: "Criado em",
     cell: ({ row }) => {
       const date = new Date(row.getValue("createdAt"))
-      return date.toLocaleDateString("pt-BR")
+      return (
+        <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+          <CalendarDays className="h-3.5 w-3.5" />
+          {date.toLocaleDateString("pt-BR")}
+        </div>
+      )
     },
   },
 ]
@@ -184,12 +279,11 @@ function SortableTaskCard({ task }: { task: Task }) {
             {task.description}
           </p>
           <div className="flex flex-wrap gap-1 mb-2">
-            <span className="bg-primary/10 text-primary px-2 py-0.5 rounded-md text-[10px] font-semibold tracking-wide uppercase">
-              {task.priority}
-            </span>
-            <span className="bg-muted text-muted-foreground px-2 py-0.5 rounded-md text-[10px]">
+            <PriorityBadge priority={task.priority} />
+            <Badge variant="outline" className="gap-1">
+              <User />
               {task.applicant}
-            </span>
+            </Badge>
           </div>
           <div className="flex items-center justify-between text-[10px] text-muted-foreground border-t pt-2">
             <span>Criado em:</span>
