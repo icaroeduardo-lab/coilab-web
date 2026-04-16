@@ -394,6 +394,8 @@ export default function TaskDetailPage() {
             <p className="text-muted-foreground">Detalhes da tarefa carregados.</p>
           </TabsContent>
 
+          {/* Phase tabs */}
+          {enabledPhases.map(phase => (
             <TabsContent key={phase.id} value={phase.id}>
               <Card>
                 <CardContent className="pt-6">
