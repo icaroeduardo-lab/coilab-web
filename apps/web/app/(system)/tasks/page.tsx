@@ -512,6 +512,13 @@ export default function Page() {
     setActiveTask(null)
   }
 
+  function handleDialogOpenChange(open: boolean) {
+    setIsCreateDialogOpen(open)
+    if (!open) {
+      form.reset()
+    }
+  }
+
   async function onSubmit(values: z.infer<typeof formSchema>) {
     try {
       const response = await fetch("/api/tasks", {
@@ -548,7 +555,7 @@ export default function Page() {
           <h1 className="text-3xl font-bold tracking-tight">Tarefas</h1>
           <div className="h-0.5 w-8 bg-primary rounded-full mt-1.5" />
         </div>
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <Dialog open={isCreateDialogOpen} onOpenChange={handleDialogOpenChange}>
           <DialogTrigger asChild>
             <Button size={"lg"} className="px-5 gap-2">
               <Plus className="h-4 w-4" />
@@ -591,7 +598,7 @@ export default function Page() {
                                 defaultValue={field.value}
                               >
                                 <FormControl>
-                                  <SelectTrigger>
+                                  <SelectTrigger className="w-full">
                                     <SelectValue placeholder="Selecione" />
                                   </SelectTrigger>
                                 </FormControl>
@@ -618,7 +625,7 @@ export default function Page() {
                                 defaultValue={field.value}
                               >
                                 <FormControl>
-                                  <SelectTrigger>
+                                  <SelectTrigger className="w-full">
                                     <SelectValue placeholder="Selecione" />
                                   </SelectTrigger>
                                 </FormControl>
