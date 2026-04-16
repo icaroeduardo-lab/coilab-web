@@ -3,6 +3,10 @@ import { NextResponse } from "next/server"
 import { v4 as uuidv4 } from "uuid"
 
 const s3Client = new S3Client({
+  credentials: {
+    accessKeyId: process.env.APP_AWS_ACCESS_KEY_ID || "",
+    secretAccessKey: process.env.APP_AWS_SECRET_ACCESS_KEY || "",
+  },
   region: process.env.APP_AWS_REGION || "us-east-1",
 })
 
