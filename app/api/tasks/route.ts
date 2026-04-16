@@ -80,7 +80,7 @@ export async function POST(request: Request) {
       } catch (error) {
         console.warn("Could not fetch flows data:", error);
         // Still create the task even if flows fetch fails
-        flowsData = selectedFlows.map(id => ({ id, name: id }));
+        flowsData = selectedFlows.map((id: string) => ({ id, name: id }));
       }
     }
 
