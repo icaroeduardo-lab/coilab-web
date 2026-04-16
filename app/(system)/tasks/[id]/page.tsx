@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DiscoveryPhaseTab } from "./discovery-form"
 
+import DesignManager, { Design } from "@/components/design-manager"
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 type Phase = {
@@ -33,6 +34,7 @@ type Task = {
   status: string
   createdAt: string
   description?: string
+  design?: Design[]
   phases?: Phase[]
 }
 
@@ -385,6 +387,7 @@ export default function TaskDetailPage() {
                 {phase.name}
               </TabsTrigger>
             ))}
+            <TabsTrigger value="design">Design</TabsTrigger>
           </TabsList>
 
           <TabsContent value="visao-geral" className="space-y-4">
@@ -496,6 +499,26 @@ export default function TaskDetailPage() {
               </Card>
             </TabsContent>
           ))}
+          {/* Design Tab */}
+          <TabsContent value="design" className="space-y-4">
+            <DesignManager
+              taskId={id}
+              initialDesigns={data.design || []}
+              onSave={async (designs) => {
+                try {
+                  await fetch(`/api/designs?taskId=${id}`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ taskId: id, designs }),
+                  })
+                  mutate()
+                } catch (error) {
+                  console.error("Error saving designs:", error)
+                }
+              }}
+            />
+          </TabsContent>
+
         </Tabs>
       </div>
     </div>
