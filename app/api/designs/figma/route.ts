@@ -27,7 +27,7 @@ function extractNodeId(url: string): string | null {
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { figmaUrl, description, figmaToken } = body
+    const { figmaUrl, title, description, figmaToken } = body
 
     if (!figmaUrl) {
       return NextResponse.json(
@@ -140,7 +140,8 @@ export async function POST(request: Request) {
       {
         success: true,
         url: s3Url,
-        description: description || figmaData.name || "Design from Figma",
+        title: title || figmaData.name || "Design from Figma",
+        description: description || "",
         fileName: fileName,
         figmaSource: figmaUrl,
       },

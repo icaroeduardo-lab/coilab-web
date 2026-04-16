@@ -10,6 +10,7 @@ export async function POST(request: Request) {
   try {
     const formData = await request.formData()
     const file = formData.get("file") as File
+    const title = formData.get("title") as string
     const description = formData.get("description") as string
 
     if (!file) {
@@ -55,6 +56,7 @@ export async function POST(request: Request) {
       {
         success: true,
         url: s3Url,
+        title: title || "",
         description: description || "",
         fileName: fileName,
       },

@@ -77,6 +77,7 @@ export async function POST(request: Request) {
     const validatedDesigns = designs.map((design) => ({
       id: design.id || Date.now().toString(),
       url: design.url,
+      title: design.title || "",
       description: design.description || "",
     }))
 

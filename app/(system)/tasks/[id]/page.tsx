@@ -316,7 +316,7 @@ export default function TaskDetailPage() {
   const id = params.id as string
   const [phases, setPhases] = useState<Phase[]>([])
 
-  const { data, isLoading, error } = useSWR<Task>(
+  const { data, isLoading, error, mutate } = useSWR<Task>(
     id ? `/api/tasks/${id}` : null,
     fetcher
   )
@@ -387,7 +387,6 @@ export default function TaskDetailPage() {
                 {phase.name}
               </TabsTrigger>
             ))}
-            <TabsTrigger value="design">Design</TabsTrigger>
           </TabsList>
 
           <TabsContent value="visao-geral" className="space-y-4">
@@ -405,6 +404,23 @@ export default function TaskDetailPage() {
                       taskId={id}
                       onPhaseUpdate={setPhases}
                     />
+                  ) : phase.id === "design" ? (
+                    <DesignManager
+                      taskId={id}
+                      initialDesigns={data.design || []}
+                      onSave={async (designs) => {
+                        try {
+                          await fetch(`/api/designs?taskId=${id}`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ taskId: id, designs }),
+                          })
+                          mutate()
+                        } catch (error) {
+                          console.error("Error saving designs:", error)
+                        }
+                      }}
+                    />
                   ) : (
                     <PhaseTab
                       phase={phase}
@@ -416,29 +432,6 @@ export default function TaskDetailPage() {
               </Card>
             </TabsContent>
           ))}
-          {/* Design Tab */}
-          <TabsContent value="design" className="space-y-4">
-            <Card>
-              <CardContent className="pt-6">
-                <DesignManager
-                  taskId={id}
-                  initialDesigns={data.design || []}
-                  onSave={async (designs) => {
-                    try {
-                      await fetch(`/api/designs?taskId=${id}`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ taskId: id, designs }),
-                      })
-                      mutate()
-                    } catch (error) {
-                      console.error("Error saving designs:", error)
-                    }
-                  }}
-                />
-              </CardContent>
-            </Card>
-          </TabsContent>
 
         </Tabs>
       </div>
