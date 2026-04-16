@@ -10,11 +10,11 @@ const docClient = DynamoDBDocumentClient.from(client);
 
 export async function GET() {
   try {
-    const tableName = process.env["DYNAMODB-TABLE-TASKS"];
+    const tableName = process.env.DYNAMODB_TABLE_TASKS;
 
     if (!tableName) {
       return NextResponse.json(
-        { error: "DYNAMODB-TABLE-TASKS environment variable is not set" },
+        { error: "DYNAMODB_TABLE_TASKS environment variable is not set" },
         { status: 500 }
       );
     }
@@ -51,9 +51,9 @@ export async function POST(request: Request) {
     const flowsTableName = process.env.DYNAMODB_TABLE_FLOWS || "coilab-flow";
 
     if (!tableName) {
-      console.error("DYNAMODB-TABLE-TASKS environment variable is not set");
+      console.error("DYNAMODB_TABLE_TASKS environment variable is not set");
       return NextResponse.json(
-        { error: "DYNAMODB-TABLE-TASKS environment variable is not set" },
+        { error: "DYNAMODB_TABLE_TASKS environment variable is not set" },
         { status: 500 }
       );
     }

@@ -87,11 +87,11 @@ function generatePhases() {
 
 export async function POST() {
   try {
-    const tableName = process.env["DYNAMODB-TABLE-TASKS"];
+    const tableName = process.env.DYNAMODB_TABLE_TASKS;
 
     if (!tableName) {
       return NextResponse.json(
-        { error: "DYNAMODB-TABLE-TASKS not set" },
+        { error: "DYNAMODB_TABLE_TASKS not set" },
         { status: 500 }
       );
     }
