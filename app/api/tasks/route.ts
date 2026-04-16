@@ -35,12 +35,20 @@ export async function GET() {
   }
 }
 
+const DEFAULT_PHASES = [
+  { id: "discovery", name: "Discovery", order: 0 },
+  { id: "design", name: "Design", order: 1 },
+  { id: "development", name: "Development", order: 2 },
+  { id: "testes", name: "Testes", order: 3 },
+];
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { name, project, priority, description, applicant } = body;
+    const { name, project, priority, description, applicant, phases: selectedPhases = [], flows: selectedFlows = [] } = body;
 
     const tableName = process.env["DYNAMODB-TABLE-TASKS"];
+    const flowsTableName = process.env["DYNAMODB-TABLE-FLOWS"] || "coilab-flow";
 
     if (!tableName) {
       console.error("DYNAMODB-TABLE-TASKS environment variable is not set");
@@ -48,6 +56,32 @@ export async function POST(request: Request) {
         { error: "DYNAMODB-TABLE-TASKS environment variable is not set" },
         { status: 500 }
       );
+    }
+
+    const phases = DEFAULT_PHASES.map(p => ({
+      ...p,
+      enabled: selectedPhases.includes(p.id),
+      status: "not_started",
+      notes: "",
+      checklist: [],
+    }));
+
+    // Fetch flow data from coilab-flow table
+    let flowsData: any[] = [];
+    if (selectedFlows.length > 0) {
+      try {
+        const { Items } = await docClient.send(
+          new ScanCommand({
+            TableName: flowsTableName,
+          })
+        );
+
+        flowsData = (Items || []).filter((item: any) => selectedFlows.includes(item.id));
+      } catch (error) {
+        console.warn("Could not fetch flows data:", error);
+        // Still create the task even if flows fetch fails
+        flowsData = selectedFlows.map(id => ({ id, name: id }));
+      }
     }
 
     const item = {
@@ -59,6 +93,8 @@ export async function POST(request: Request) {
       description,
       status: "Backlog",
       createdAt: new Date().toISOString(),
+      phases,
+      flows: flowsData,
     };
 
     console.log("Attempting to save item to DynamoDB:", { tableName, item });

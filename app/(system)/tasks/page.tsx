@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
@@ -17,6 +18,7 @@ import {
   CircleX,
   CalendarDays,
   User,
+  Eye,
 } from "lucide-react"
 import { ColumnDef } from "@tanstack/react-table"
 import useSWR, { useSWRConfig } from "swr"
@@ -66,6 +68,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Label } from "@/components/ui/label"
 import {
   Card,
   CardContent,
@@ -102,7 +106,20 @@ const formSchema = z.object({
   description: z.string().min(2, {
     message: "A tarefa deve ter uma descrição obrigatória.",
   }),
+  phases: z.array(z.string()),
+  flows: z.array(z.string()).optional(),
 })
+
+type Phase = {
+  id: string
+  name: string
+  order: number
+  enabled: boolean
+  status: "not_started" | "in_progress" | "completed"
+  completedAt?: string
+  notes?: string
+  checklist: { id: string, label: string, completed: boolean }[]
+}
 
 type Task = {
   id: string
@@ -185,7 +202,12 @@ const columns: ColumnDef<Task>[] = [
     accessorKey: "name",
     header: "Nome",
     cell: ({ row }) => (
-      <span className="font-medium text-sm">{row.getValue("name")}</span>
+      <Link
+        href={`/tasks/${row.original.id}`}
+        className="font-medium text-sm text-primary hover:underline"
+      >
+        {row.getValue("name")}
+      </Link>
     ),
   },
   {
@@ -269,6 +291,13 @@ function SortableTaskCard({ task }: { task: Task }) {
       {...listeners}
       className="cursor-grab active:cursor-grabbing group relative hover:border-primary/60 hover:shadow-sm transition-all duration-150"
     >
+      <Link
+        href={`/tasks/${task.id}`}
+        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150 p-1.5 hover:bg-primary/10 rounded text-primary shrink-0"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <Eye className="h-4 w-4" />
+      </Link>
       <CardHeader className="p-4 pb-2">
         <CardTitle className="text-sm font-bold">{task.name}</CardTitle>
         <CardDescription className="text-xs">{task.project}</CardDescription>
@@ -340,9 +369,24 @@ export default function Page() {
     message: string
   } | null>(null)
   
-  const { data: tasks = [], isLoading: tasksLoading } = useSWR<Task[]>("/api/tasks", fetcher)
-  const { data: statuses = [] } = useSWR<Option[]>("/api/status", fetcher)
-  const { data: applicants = [] } = useSWR<Option[]>("/api/applicants", fetcher)
+  const { data: tasksData, isLoading: tasksLoading } = useSWR<Task[]>("/api/tasks", fetcher)
+  const { data: statusesData } = useSWR<Option[]>("/api/status", fetcher)
+  const { data: applicantsData } = useSWR<Option[]>("/api/applicants", fetcher)
+  const { data: projectsData } = useSWR<Option[]>("/api/projects", fetcher)
+  const { data: flowsData } = useSWR<Option[]>("/api/flows", fetcher)
+
+  const tasks = Array.isArray(tasksData) ? tasksData : []
+  const statuses = Array.isArray(statusesData) ? statusesData : []
+  const applicants = Array.isArray(applicantsData) ? applicantsData.map(a => ({ ...a, name: a.name.toUpperCase() })) : []
+  const projects = Array.isArray(projectsData) ? projectsData.map(p => ({ ...p, name: p.name.toUpperCase() })) : []
+  const flows = Array.isArray(flowsData) ? flowsData.map(f => ({ ...f, name: f.name.toUpperCase() })) : []
+  const DEFAULT_PHASES = [
+    { id: "discovery", name: "Discovery" },
+    { id: "design", name: "Design" },
+    { id: "development", name: "Development" },
+    { id: "testes", name: "Testes" },
+  ]
+  const phases = DEFAULT_PHASES
 
   const [activeTask, setActiveTask] = useState<Task | null>(null)
 
@@ -363,8 +407,10 @@ export default function Page() {
       name: "",
       project: "",
       applicant: "",
-      priority: "",
+      phases: [],
+      priority: "Baixa",
       description: "",
+      flows: [],
     },
   })
 
@@ -466,6 +512,13 @@ export default function Page() {
     setActiveTask(null)
   }
 
+  function handleDialogOpenChange(open: boolean) {
+    setIsCreateDialogOpen(open)
+    if (!open) {
+      form.reset()
+    }
+  }
+
   async function onSubmit(values: z.infer<typeof formSchema>) {
     try {
       const response = await fetch("/api/tasks", {
@@ -502,102 +555,239 @@ export default function Page() {
           <h1 className="text-3xl font-bold tracking-tight">Tarefas</h1>
           <div className="h-0.5 w-8 bg-primary rounded-full mt-1.5" />
         </div>
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <Dialog open={isCreateDialogOpen} onOpenChange={handleDialogOpenChange}>
           <DialogTrigger asChild>
             <Button size={"lg"} className="px-5 gap-2">
               <Plus className="h-4 w-4" />
               Nova tarefa
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Nova Tarefa</DialogTitle>
             </DialogHeader>
             <div className="py-4">
               <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                  <FormField
-                    control={form.control}
-                    name="name"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Nome</FormLabel>
-                        <FormControl>
-                          <Input {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="project"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Projeto</FormLabel>
-                        <FormControl>
-                          <Input {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="applicant"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Solicitante</FormLabel>
-                        <Select
-                          onValueChange={field.onChange}
-                          defaultValue={field.value}
-                        >
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                  {/* Informações Básicas */}
+                  <div className="border-b pb-4">
+                    <h3 className="text-sm font-semibold mb-4 text-muted-foreground">Informações Básicas</h3>
+                    <div className="space-y-4">
+                      <FormField
+                        control={form.control}
+                        name="name"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Nome da Tarefa *</FormLabel>
+                            <FormControl>
+                              <Input {...field} placeholder="Digite o nome da tarefa" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <FormField
+                          control={form.control}
+                          name="project"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Projeto *</FormLabel>
+                              <Select
+                                onValueChange={field.onChange}
+                                defaultValue={field.value}
+                              >
+                                <FormControl>
+                                  <SelectTrigger className="w-full">
+                                    <SelectValue placeholder="Selecione" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  {projects.map((project) => (
+                                    <SelectItem key={project.id} value={project.name}>
+                                      {project.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="applicant"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Solicitante *</FormLabel>
+                              <Select
+                                onValueChange={field.onChange}
+                                defaultValue={field.value}
+                              >
+                                <FormControl>
+                                  <SelectTrigger className="w-full">
+                                    <SelectValue placeholder="Selecione" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  {applicants.map((applicant) => (
+                                    <SelectItem key={applicant.id} value={applicant.name}>
+                                      {applicant.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="priority"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Prioridade *</FormLabel>
+                              <FormControl>
+                                <RadioGroup value={field.value} onValueChange={field.onChange} className="flex gap-4 pt-1">
+                                  <div className="flex items-center space-x-1.5">
+                                    <RadioGroupItem value="Baixa" id="priority-baixa" />
+                                    <Label htmlFor="priority-baixa" className="font-normal cursor-pointer text-sm">Baixa</Label>
+                                  </div>
+                                  <div className="flex items-center space-x-1.5">
+                                    <RadioGroupItem value="Média" id="priority-media" />
+                                    <Label htmlFor="priority-media" className="font-normal cursor-pointer text-sm">Média</Label>
+                                  </div>
+                                  <div className="flex items-center space-x-1.5">
+                                    <RadioGroupItem value="Alta" id="priority-alta" />
+                                    <Label htmlFor="priority-alta" className="font-normal cursor-pointer text-sm">Alta</Label>
+                                  </div>
+                                </RadioGroup>
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Descrição */}
+                  <div className="border-b pb-4">
+                    <h3 className="text-sm font-semibold mb-4 text-muted-foreground">Detalhes</h3>
+                    <FormField
+                      control={form.control}
+                      name="description"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Descrição *</FormLabel>
                           <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Selecione um solicitante" />
-                            </SelectTrigger>
+                            <Textarea
+                              {...field}
+                              placeholder="Descreva a tarefa em detalhes..."
+                              className="min-h-24"
+                            />
                           </FormControl>
-                          <SelectContent>
-                            {applicants.map((applicant) => (
-                              <SelectItem key={applicant.id} value={applicant.name}>
-                                {applicant.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="priority"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Prioridade</FormLabel>
-                        <FormControl>
-                          <Input {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="description"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Descrição</FormLabel>
-                        <FormControl>
-                          <Textarea {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <Button type="submit" className="w-full">
-                    Salvar
-                  </Button>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  {/* Configurações */}
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-semibold text-muted-foreground">Configurações</h3>
+
+                    {/* Fases e Fluxos em dois blocos lado a lado */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {/* Fases */}
+                      <FormField
+                        control={form.control}
+                        name="phases"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Fases da Tarefa</FormLabel>
+                            <div className="space-y-3 border rounded-lg p-4 bg-muted/30">
+                              {phases.length === 0 ? (
+                                <p className="text-sm text-muted-foreground">Nenhuma fase disponível</p>
+                              ) : (
+                                phases.map((phase) => (
+                                  <label key={phase.id} className="flex items-center gap-3 text-sm cursor-pointer hover:bg-muted/50 p-2 rounded transition-colors">
+                                    <input
+                                      type="checkbox"
+                                      checked={field.value.includes(phase.id)}
+                                      onChange={(e) => {
+                                        const updated = e.target.checked
+                                          ? [...field.value, phase.id]
+                                          : field.value.filter((id: string) => id !== phase.id)
+                                        field.onChange(updated)
+                                      }}
+                                      className="rounded border-gray-300 cursor-pointer"
+                                    />
+                                    <span className="font-medium">{phase.name}</span>
+                                  </label>
+                                ))
+                              )}
+                            </div>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      {/* Fluxos */}
+                      <FormField
+                        control={form.control}
+                        name="flows"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Fluxo Previsto</FormLabel>
+                            <div className="space-y-3 border rounded-lg p-4 bg-muted/30">
+                              {flows.length === 0 ? (
+                                <p className="text-sm text-muted-foreground">Nenhum fluxo disponível</p>
+                              ) : (
+                                flows.map((flow) => (
+                                  <label key={flow.id} className="flex items-center gap-3 text-sm cursor-pointer hover:bg-muted/50 p-2 rounded transition-colors">
+                                    <input
+                                      type="checkbox"
+                                      checked={field.value?.includes(flow.id) || false}
+                                      onChange={(e) => {
+                                        const updated = e.target.checked
+                                          ? [...(field.value || []), flow.id]
+                                          : (field.value || []).filter((id: string) => id !== flow.id)
+                                        field.onChange(updated)
+                                      }}
+                                      className="rounded border-gray-300 cursor-pointer"
+                                    />
+                                    <span className="font-medium">{flow.name}</span>
+                                  </label>
+                                ))
+                              )}
+                            </div>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Botões de Ação */}
+                  <div className="flex gap-3 pt-4 border-t">
+                    <Button
+                      type="submit"
+                      className="flex-1"
+                      size="lg"
+                    >
+                      Salvar Tarefa
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setIsCreateDialogOpen(false)}
+                      className="flex-1"
+                      size="lg"
+                    >
+                      Cancelar
+                    </Button>
+                  </div>
                 </form>
               </Form>
             </div>
