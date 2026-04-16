@@ -551,155 +551,205 @@ export default function Page() {
               Nova tarefa
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Nova Tarefa</DialogTitle>
             </DialogHeader>
             <div className="py-4">
               <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                  <FormField
-                    control={form.control}
-                    name="name"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Nome</FormLabel>
-                        <FormControl>
-                          <Input {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="project"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Projeto</FormLabel>
-                        <FormControl>
-                          <Input {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="applicant"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Solicitante</FormLabel>
-                        <Select
-                          onValueChange={field.onChange}
-                          defaultValue={field.value}
-                        >
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                  {/* Informações Básicas */}
+                  <div className="border-b pb-4">
+                    <h3 className="text-sm font-semibold mb-4 text-muted-foreground">Informações Básicas</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="name"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Nome da Tarefa *</FormLabel>
+                            <FormControl>
+                              <Input {...field} placeholder="Digite o nome da tarefa" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="project"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Projeto *</FormLabel>
+                            <FormControl>
+                              <Input {...field} placeholder="Digite o nome do projeto" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                      <FormField
+                        control={form.control}
+                        name="applicant"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Solicitante *</FormLabel>
+                            <Select
+                              onValueChange={field.onChange}
+                              defaultValue={field.value}
+                            >
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Selecione um solicitante" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {applicants.map((applicant) => (
+                                  <SelectItem key={applicant.id} value={applicant.name}>
+                                    {applicant.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="priority"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Prioridade *</FormLabel>
+                            <FormControl>
+                              <Input {...field} placeholder="Ex: Alta, Média, Baixa" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Descrição */}
+                  <div className="border-b pb-4">
+                    <h3 className="text-sm font-semibold mb-4 text-muted-foreground">Detalhes</h3>
+                    <FormField
+                      control={form.control}
+                      name="description"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Descrição *</FormLabel>
                           <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Selecione um solicitante" />
-                            </SelectTrigger>
+                            <Textarea
+                              {...field}
+                              placeholder="Descreva a tarefa em detalhes..."
+                              className="min-h-24"
+                            />
                           </FormControl>
-                          <SelectContent>
-                            {applicants.map((applicant) => (
-                              <SelectItem key={applicant.id} value={applicant.name}>
-                                {applicant.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="priority"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Prioridade</FormLabel>
-                        <FormControl>
-                          <Input {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="description"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Descrição</FormLabel>
-                        <FormControl>
-                          <Textarea {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="phases"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Fases da Tarefa</FormLabel>
-                        <div className="space-y-2">
-                          {phases.map((phase) => (
-                            <label key={phase.id} className="flex items-center gap-2 text-sm cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={field.value.includes(phase.id)}
-                                onChange={(e) => {
-                                  const updated = e.target.checked
-                                    ? [...field.value, phase.id]
-                                    : field.value.filter((id: string) => id !== phase.id)
-                                  field.onChange(updated)
-                                }}
-                                className="rounded border-gray-300"
-                              />
-                              <span>{phase.name}</span>
-                            </label>
-                          ))}
-                        </div>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="flows"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Fluxo Previsto</FormLabel>
-                        <div className="space-y-2">
-                          {flows.length === 0 ? (
-                            <p className="text-sm text-muted-foreground">Nenhum fluxo disponível</p>
-                          ) : (
-                            flows.map((flow) => (
-                              <label key={flow.id} className="flex items-center gap-2 text-sm cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  checked={field.value?.includes(flow.id) || false}
-                                  onChange={(e) => {
-                                    const updated = e.target.checked
-                                      ? [...(field.value || []), flow.id]
-                                      : (field.value || []).filter((id: string) => id !== flow.id)
-                                    field.onChange(updated)
-                                  }}
-                                  className="rounded border-gray-300"
-                                />
-                                <span>{flow.name}</span>
-                              </label>
-                            ))
-                          )}
-                        </div>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <Button type="submit" className="w-full">
-                    Salvar
-                  </Button>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  {/* Configurações */}
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-semibold text-muted-foreground">Configurações</h3>
+
+                    {/* Fases e Fluxos em dois blocos lado a lado */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {/* Fases */}
+                      <FormField
+                        control={form.control}
+                        name="phases"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Fases da Tarefa</FormLabel>
+                            <div className="space-y-3 border rounded-lg p-4 bg-muted/30">
+                              {phases.length === 0 ? (
+                                <p className="text-sm text-muted-foreground">Nenhuma fase disponível</p>
+                              ) : (
+                                phases.map((phase) => (
+                                  <label key={phase.id} className="flex items-center gap-3 text-sm cursor-pointer hover:bg-muted/50 p-2 rounded transition-colors">
+                                    <input
+                                      type="checkbox"
+                                      checked={field.value.includes(phase.id)}
+                                      onChange={(e) => {
+                                        const updated = e.target.checked
+                                          ? [...field.value, phase.id]
+                                          : field.value.filter((id: string) => id !== phase.id)
+                                        field.onChange(updated)
+                                      }}
+                                      className="rounded border-gray-300 cursor-pointer"
+                                    />
+                                    <span className="font-medium">{phase.name}</span>
+                                  </label>
+                                ))
+                              )}
+                            </div>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      {/* Fluxos */}
+                      <FormField
+                        control={form.control}
+                        name="flows"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Fluxo Previsto</FormLabel>
+                            <div className="space-y-3 border rounded-lg p-4 bg-muted/30">
+                              {flows.length === 0 ? (
+                                <p className="text-sm text-muted-foreground">Nenhum fluxo disponível</p>
+                              ) : (
+                                flows.map((flow) => (
+                                  <label key={flow.id} className="flex items-center gap-3 text-sm cursor-pointer hover:bg-muted/50 p-2 rounded transition-colors">
+                                    <input
+                                      type="checkbox"
+                                      checked={field.value?.includes(flow.id) || false}
+                                      onChange={(e) => {
+                                        const updated = e.target.checked
+                                          ? [...(field.value || []), flow.id]
+                                          : (field.value || []).filter((id: string) => id !== flow.id)
+                                        field.onChange(updated)
+                                      }}
+                                      className="rounded border-gray-300 cursor-pointer"
+                                    />
+                                    <span className="font-medium">{flow.name}</span>
+                                  </label>
+                                ))
+                              )}
+                            </div>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Botões de Ação */}
+                  <div className="flex gap-3 pt-4 border-t">
+                    <Button
+                      type="submit"
+                      className="flex-1"
+                      size="lg"
+                    >
+                      Salvar Tarefa
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setIsCreateDialogOpen(false)}
+                      className="flex-1"
+                      size="lg"
+                    >
+                      Cancelar
+                    </Button>
+                  </div>
                 </form>
               </Form>
             </div>
