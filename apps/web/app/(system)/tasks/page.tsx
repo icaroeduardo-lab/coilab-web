@@ -68,6 +68,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@workspace/ui/components/select"
+import { RadioGroup, RadioGroupItem } from "@workspace/ui/components/radio-group"
+import { Label } from "@workspace/ui/components/label"
 import {
   Card,
   CardContent,
@@ -370,11 +372,13 @@ export default function Page() {
   const { data: tasksData, isLoading: tasksLoading } = useSWR<Task[]>("/api/tasks", fetcher)
   const { data: statusesData } = useSWR<Option[]>("/api/status", fetcher)
   const { data: applicantsData } = useSWR<Option[]>("/api/applicants", fetcher)
+  const { data: projectsData } = useSWR<Option[]>("/api/projects", fetcher)
   const { data: flowsData } = useSWR<Option[]>("/api/flows", fetcher)
 
   const tasks = Array.isArray(tasksData) ? tasksData : []
   const statuses = Array.isArray(statusesData) ? statusesData : []
-  const applicants = Array.isArray(applicantsData) ? applicantsData : []
+  const applicants = Array.isArray(applicantsData) ? applicantsData.map(a => ({ ...a, name: a.name.toUpperCase() })) : []
+  const projects = Array.isArray(projectsData) ? projectsData.map(p => ({ ...p, name: p.name.toUpperCase() })) : []
   const flows = Array.isArray(flowsData) ? flowsData : []
   const DEFAULT_PHASES = [
     { id: "discovery", name: "Discovery" },
@@ -581,34 +585,19 @@ export default function Page() {
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>Projeto *</FormLabel>
-                            <FormControl>
-                              <Input {...field} placeholder="Digite o nome do projeto" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                      <FormField
-                        control={form.control}
-                        name="applicant"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Solicitante *</FormLabel>
                             <Select
                               onValueChange={field.onChange}
                               defaultValue={field.value}
                             >
                               <FormControl>
                                 <SelectTrigger>
-                                  <SelectValue placeholder="Selecione um solicitante" />
+                                  <SelectValue placeholder="Selecione um projeto" />
                                 </SelectTrigger>
                               </FormControl>
                               <SelectContent>
-                                {applicants.map((applicant) => (
-                                  <SelectItem key={applicant.id} value={applicant.name}>
-                                    {applicant.name}
+                                {projects.map((project) => (
+                                  <SelectItem key={project.id} value={project.name}>
+                                    {project.name}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
@@ -617,20 +606,62 @@ export default function Page() {
                           </FormItem>
                         )}
                       />
-                      <FormField
-                        control={form.control}
-                        name="priority"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Prioridade *</FormLabel>
-                            <FormControl>
-                              <Input {...field} placeholder="Ex: Alta, Média, Baixa" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
                     </div>
+                    <FormField
+                      control={form.control}
+                      name="applicant"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Solicitante *</FormLabel>
+                          <Select
+                            onValueChange={field.onChange}
+                            defaultValue={field.value}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecione um solicitante" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {applicants.map((applicant) => (
+                                <SelectItem key={applicant.id} value={applicant.name}>
+                                  {applicant.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="priority"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Prioridade *</FormLabel>
+                          <FormControl>
+                            <RadioGroup value={field.value} onValueChange={field.onChange}>
+                              <div className="flex gap-6">
+                                <div className="flex items-center space-x-2">
+                                  <RadioGroupItem value="Baixa" id="priority-baixa" />
+                                  <Label htmlFor="priority-baixa" className="font-normal cursor-pointer">Baixa</Label>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <RadioGroupItem value="Média" id="priority-media" />
+                                  <Label htmlFor="priority-media" className="font-normal cursor-pointer">Média</Label>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <RadioGroupItem value="Alta" id="priority-alta" />
+                                  <Label htmlFor="priority-alta" className="font-normal cursor-pointer">Alta</Label>
+                                </div>
+                              </div>
+                            </RadioGroup>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                   </div>
 
                   {/* Descrição */}
