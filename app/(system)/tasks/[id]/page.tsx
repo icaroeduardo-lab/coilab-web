@@ -391,94 +391,9 @@ export default function TaskDetailPage() {
           </TabsList>
 
           <TabsContent value="visao-geral" className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Left column - Main info */}
-              <div className="md:col-span-2 flex flex-col gap-6">
-                {/* Description */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-sm">Descrição</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-foreground leading-relaxed">
-                      {data.description || "Nenhuma descrição fornecida."}
-                    </p>
-                  </CardContent>
-                </Card>
-
-                {/* Details */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-sm">Detalhes</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div>
-                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
-                        Projeto
-                      </p>
-                      <p className="text-sm font-medium">{data.project}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
-                        Solicitante
-                      </p>
-                      <div className="flex items-center gap-1.5 text-sm">
-                        <User className="h-3.5 w-3.5 text-muted-foreground" />
-                        {data.applicant}
-                      </div>
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
-                        Criado em
-                      </p>
-                      <div className="flex items-center gap-1.5 text-sm">
-                        <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                        {new Date(data.createdAt).toLocaleDateString("pt-BR", {
-                          weekday: "long",
-                          year: "numeric",
-                          month: "long",
-                          day: "numeric",
-                        })}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Right column - Status info */}
-              <div className="flex flex-col gap-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-sm">Status</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <StatusBadge status={data.status} />
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-sm">Prioridade</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <PriorityBadge priority={data.priority} />
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-sm">ID da Tarefa</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-xs font-mono text-muted-foreground break-all">{data.id}</p>
-                  </CardContent>
-                </Card>
-              </div>
-            </div>
+            <p className="text-muted-foreground">Detalhes da tarefa carregados.</p>
           </TabsContent>
 
-          {/* Phase tabs */}
-          {enabledPhases.map(phase => (
             <TabsContent key={phase.id} value={phase.id}>
               <Card>
                 <CardContent className="pt-6">
@@ -501,22 +416,26 @@ export default function TaskDetailPage() {
           ))}
           {/* Design Tab */}
           <TabsContent value="design" className="space-y-4">
-            <DesignManager
-              taskId={id}
-              initialDesigns={data.design || []}
-              onSave={async (designs) => {
-                try {
-                  await fetch(`/api/designs?taskId=${id}`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ taskId: id, designs }),
-                  })
-                  mutate()
-                } catch (error) {
-                  console.error("Error saving designs:", error)
-                }
-              }}
-            />
+            <Card>
+              <CardContent className="pt-6">
+                <DesignManager
+                  taskId={id}
+                  initialDesigns={data.design || []}
+                  onSave={async (designs) => {
+                    try {
+                      await fetch(`/api/designs?taskId=${id}`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ taskId: id, designs }),
+                      })
+                      mutate()
+                    } catch (error) {
+                      console.error("Error saving designs:", error)
+                    }
+                  }}
+                />
+              </CardContent>
+            </Card>
           </TabsContent>
 
         </Tabs>

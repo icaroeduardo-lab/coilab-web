@@ -37,9 +37,8 @@ export async function GET() {
 
 const DEFAULT_PHASES = [
   { id: "discovery", name: "Discovery", order: 0 },
-  { id: "design", name: "Design", order: 1 },
-  { id: "development", name: "Development", order: 2 },
-  { id: "testes", name: "Testes", order: 3 },
+  { id: "development", name: "Development", order: 1 },
+  { id: "testes", name: "Testes", order: 2 },
 ];
 
 export async function POST(request: Request) {
