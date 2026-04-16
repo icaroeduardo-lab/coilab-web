@@ -15,8 +15,8 @@ const s3Client = new S3Client({
  * Supports: https://www.figma.com/file/{fileId}/... or https://figma.com/file/{fileId}/...
  */
 function extractFigmaFileId(url: string): string | null {
-  const match = url.match(/\/file\/([a-zA-Z0-9]+)/)
-  return match ? match[1] : null
+  const match = url.match(/\/(file|design)\/([a-zA-Z0-9]+)/)
+  return match ? match[2] : null
 }
 
 /**
