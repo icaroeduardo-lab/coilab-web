@@ -648,20 +648,41 @@ export default function Page() {
                             <FormItem>
                               <FormLabel>Prioridade *</FormLabel>
                               <FormControl>
-                                <RadioGroup value={field.value} onValueChange={field.onChange} className="flex gap-4 pt-1">
+                                <div className="flex gap-4 pt-1">
                                   <div className="flex items-center space-x-1.5">
-                                    <RadioGroupItem value="Baixa" id="priority-baixa" />
+                                    <input
+                                      type="radio"
+                                      id="priority-baixa"
+                                      value="Baixa"
+                                      checked={field.value === "Baixa"}
+                                      onChange={field.onChange}
+                                      className="cursor-pointer"
+                                    />
                                     <Label htmlFor="priority-baixa" className="font-normal cursor-pointer text-sm">Baixa</Label>
                                   </div>
                                   <div className="flex items-center space-x-1.5">
-                                    <RadioGroupItem value="Média" id="priority-media" />
+                                    <input
+                                      type="radio"
+                                      id="priority-media"
+                                      value="Média"
+                                      checked={field.value === "Média"}
+                                      onChange={field.onChange}
+                                      className="cursor-pointer"
+                                    />
                                     <Label htmlFor="priority-media" className="font-normal cursor-pointer text-sm">Média</Label>
                                   </div>
                                   <div className="flex items-center space-x-1.5">
-                                    <RadioGroupItem value="Alta" id="priority-alta" />
+                                    <input
+                                      type="radio"
+                                      id="priority-alta"
+                                      value="Alta"
+                                      checked={field.value === "Alta"}
+                                      onChange={field.onChange}
+                                      className="cursor-pointer"
+                                    />
                                     <Label htmlFor="priority-alta" className="font-normal cursor-pointer text-sm">Alta</Label>
                                   </div>
-                                </RadioGroup>
+                                </div>
                               </FormControl>
                               <FormMessage />
                             </FormItem>
