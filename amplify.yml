@@ -6,16 +6,7 @@ frontend:
         - corepack enable
         - corepack prepare pnpm@latest --activate
         - pnpm install --frozen-lockfile
-        - |
-          cat > .env.production << EOF
-          APP_AWS_REGION=$APP_AWS_REGION
-          DYNAMODB_TABLE_TASKS=$DYNAMODB_TABLE_TASKS
-          DYNAMODB_TABLE_APPLICANT=$DYNAMODB_TABLE_APPLICANT
-          DYNAMODB_TABLE_PROJECTS=$DYNAMODB_TABLE_PROJECTS
-          DYNAMODB_TABLE_STATUS=$DYNAMODB_TABLE_STATUS
-          DYNAMODB_TABLE_FLOWS=$DYNAMODB_TABLE_FLOWS
-          BUCKET_DESIGN=$BUCKET_DESIGN
-          EOF
+        - node scripts/inject-env.js
     build:
       commands:
         - pnpm run build
