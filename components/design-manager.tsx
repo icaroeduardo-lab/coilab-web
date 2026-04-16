@@ -152,6 +152,31 @@ export default function DesignManager({
     }
   }
 
+  const [isPreviewing, setIsPreviewing] = useState(false)
+
+  const handleFigmaPreview = async () => {
+    if (!figmaUrl.trim()) return
+    setIsPreviewing(true)
+    setFigmaPreview(null)
+    try {
+      const res = await fetch("/api/designs/figma/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          figmaUrl: figmaUrl.trim(),
+          figmaToken: figmaToken.trim() || undefined,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setFigmaPreview(data.previewUrl)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao carregar preview")
+    } finally {
+      setIsPreviewing(false)
+    }
+  }
+
   const handleFigmaImport = async () => {
     if (!figmaUrl.trim()) {
       setError("Por favor, adicione a URL do Figma")
@@ -385,16 +410,28 @@ export default function DesignManager({
                     <Label htmlFor="figma-url" className="text-sm font-medium">
                       URL do Figma *
                     </Label>
-                    <Input
-                      id="figma-url"
-                      placeholder="https://www.figma.com/file/..."
-                      value={figmaUrl}
-                      onChange={(e) => setFigmaUrl(e.target.value)}
-                      disabled={isLoading}
-                      className="font-mono text-xs"
-                    />
+                    <div className="flex gap-2">
+                      <Input
+                        id="figma-url"
+                        placeholder="https://www.figma.com/file/...?node-id=..."
+                        value={figmaUrl}
+                        onChange={(e) => { setFigmaUrl(e.target.value); setFigmaPreview(null) }}
+                        disabled={isLoading}
+                        className="font-mono text-xs"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleFigmaPreview}
+                        disabled={!figmaUrl.trim() || isPreviewing || isLoading}
+                        className="shrink-0 text-xs"
+                      >
+                        {isPreviewing ? <Loader2 className="h-3 w-3 animate-spin" /> : "Pré-visualizar"}
+                      </Button>
+                    </div>
                     <p className="text-xs text-muted-foreground">
-                      Cole o link do seu arquivo ou quadro no Figma
+                      Use "Copy link to selection" no Figma para incluir o node-id
                     </p>
                   </div>
 
