@@ -243,17 +243,26 @@ function DiscoveryForm({
           </div>
 
           <div>
-            <label className="text-sm font-medium block mb-1">
+            <label className="text-sm font-medium block mb-3">
               Setor/Área * <span className="text-xs text-muted-foreground">(preenchido automaticamente)</span>
             </label>
-            <input
-              {...register("sector")}
-              placeholder="Ex: RH, Financeiro, Operações"
-              readOnly
-              className="w-full px-3 py-2 border border-input rounded-md bg-muted text-sm focus:outline-none focus:ring-2 focus:ring-primary cursor-not-allowed"
-            />
+            <div className="flex flex-wrap gap-2">
+              {taskData?.applicant && (
+                <label className="inline-flex items-center px-3 py-2 rounded-full border-2 border-primary bg-primary/10 text-primary cursor-pointer hover:bg-primary/20 transition-colors">
+                  <input
+                    {...register("sector")}
+                    type="checkbox"
+                    value={taskData.applicant}
+                    checked={true}
+                    disabled
+                    className="cursor-not-allowed"
+                  />
+                  <span className="ml-2 text-sm font-medium">{taskData.applicant}</span>
+                </label>
+              )}
+            </div>
             {errors.sector && (
-              <p className="text-xs text-destructive mt-1">
+              <p className="text-xs text-destructive mt-2">
                 {errors.sector.message}
               </p>
             )}
@@ -263,42 +272,29 @@ function DiscoveryForm({
             <label className="text-sm font-medium block mb-3">
               Fluxo Previsto * <span className="text-xs text-muted-foreground">(preenchido automaticamente)</span>
             </label>
-            <div className="space-y-3">
-              <Controller
-                control={control}
-                name="flow"
-                render={({ field }) => (
-                  <RadioGroup value={field.value} onValueChange={field.onChange} disabled>
-                    <div className="flex items-center space-x-2 opacity-50">
-                      <RadioGroupItem value="interno" id="flow-interno" disabled />
-                      <Label htmlFor="flow-interno" className="font-normal cursor-not-allowed">Interno</Label>
-                    </div>
-                    <div className="flex items-center space-x-2 opacity-50">
-                      <RadioGroupItem value="coppe" id="flow-coppe" disabled />
-                      <Label htmlFor="flow-coppe" className="font-normal cursor-not-allowed">COPPE</Label>
-                    </div>
-                    <div className="flex items-center space-x-2 opacity-50">
-                      <RadioGroupItem value="externo" id="flow-externo" disabled />
-                      <Label htmlFor="flow-externo" className="font-normal cursor-not-allowed">Externo</Label>
-                    </div>
-                  </RadioGroup>
-                )}
-              />
-              {taskData?.flows && taskData.flows.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {taskData.flows.map((flow) => (
-                    <span
-                      key={flow.id}
-                      className="inline-block px-2 py-1 text-xs font-medium bg-primary/10 text-primary rounded-full border border-primary/30"
-                    >
-                      {flow.name}
-                    </span>
-                  ))}
-                </div>
+            <div className="flex flex-wrap gap-2">
+              {taskData?.flows && taskData.flows.length > 0 ? (
+                taskData.flows.map((flow) => (
+                  <label
+                    key={flow.id}
+                    className="inline-flex items-center px-3 py-2 rounded-full border-2 border-primary bg-primary/10 text-primary cursor-pointer hover:bg-primary/20 transition-colors"
+                  >
+                    <input
+                      type="checkbox"
+                      value={flow.id}
+                      checked={true}
+                      disabled
+                      className="cursor-not-allowed"
+                    />
+                    <span className="ml-2 text-sm font-medium">{flow.name}</span>
+                  </label>
+                ))
+              ) : (
+                <span className="text-sm text-muted-foreground">Nenhum fluxo associado</span>
               )}
             </div>
             {errors.flow && (
-              <p className="text-xs text-destructive mt-1">
+              <p className="text-xs text-destructive mt-2">
                 {errors.flow.message}
               </p>
             )}
