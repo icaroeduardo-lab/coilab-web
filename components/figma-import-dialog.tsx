@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState } from "react"
 import Image from "next/image"
 import { Loader2, AlertCircle, ImageIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -28,45 +28,36 @@ export default function FigmaImportDialog({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [previewError, setPreviewError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const hasNodeId = (url: string) => /node-id=/.test(url)
 
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-
+  const handlePreview = async () => {
     const trimmed = figmaUrl.trim()
-    if (!trimmed || !hasNodeId(trimmed)) {
-      setPreviewUrl(null)
-      setPreviewError(null)
-      return
+    if (!trimmed) return
+
+    setIsPreviewing(true)
+    setPreviewUrl(null)
+    setPreviewError(null)
+
+    try {
+      const res = await fetch("/api/designs/figma/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          figmaUrl: trimmed,
+          figmaToken: figmaToken.trim() || undefined,
+        }),
+      })
+
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setPreviewUrl(data.previewUrl)
+    } catch (err) {
+      setPreviewError(err instanceof Error ? err.message : "Erro ao carregar preview")
+    } finally {
+      setIsPreviewing(false)
     }
-
-    debounceRef.current = setTimeout(async () => {
-      setIsPreviewing(true)
-      setPreviewUrl(null)
-      setPreviewError(null)
-
-      try {
-        const res = await fetch("/api/designs/figma/preview", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            figmaUrl: trimmed,
-            figmaToken: figmaToken.trim() || undefined,
-          }),
-        })
-
-        const data = await res.json()
-        if (!res.ok) throw new Error(data.error)
-        setPreviewUrl(data.previewUrl)
-      } catch (err) {
-        setPreviewError(err instanceof Error ? err.message : "Erro ao carregar preview")
-      } finally {
-        setIsPreviewing(false)
-      }
-    }, 800)
-  }, [figmaUrl, figmaToken])
+  }
 
   const handleImport = async () => {
     if (!figmaUrl.trim()) {
@@ -138,13 +129,25 @@ export default function FigmaImportDialog({
 
               <div className="space-y-2">
                 <label className="text-sm font-medium">Link do Frame *</label>
-                <Input
-                  placeholder="https://www.figma.com/file/...?node-id=..."
-                  value={figmaUrl}
-                  onChange={(e) => setFigmaUrl(e.target.value)}
-                  disabled={isLoading}
-                  className="font-mono text-xs"
-                />
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="https://www.figma.com/file/...?node-id=..."
+                    value={figmaUrl}
+                    onChange={(e) => { setFigmaUrl(e.target.value); setPreviewUrl(null); setPreviewError(null) }}
+                    disabled={isLoading}
+                    className="font-mono text-xs"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handlePreview}
+                    disabled={!figmaUrl.trim() || isPreviewing || isLoading}
+                    className="shrink-0"
+                  >
+                    {isPreviewing ? <Loader2 className="h-4 w-4 animate-spin" /> : "Pré-visualizar"}
+                  </Button>
+                </div>
                 {!hasNodeId(figmaUrl) && figmaUrl.trim() && (
                   <p className="text-xs text-amber-500">
                     Use "Copy link to selection" no Figma para incluir o node-id
