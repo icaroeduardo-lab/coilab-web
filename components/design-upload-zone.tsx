@@ -68,6 +68,7 @@ export default function DesignUploadZone({
           designs.push({
             id: data.fileName,
             url: data.url,
+            title: data.title || "",
             description: data.description,
           })
         }

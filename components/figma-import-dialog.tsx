@@ -57,6 +57,7 @@ export default function FigmaImportDialog({
         {
           id: data.fileName,
           url: data.url,
+          title: data.title || "",
           description: data.description,
         },
       ])
