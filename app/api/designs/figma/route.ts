@@ -3,7 +3,7 @@ import { NextResponse } from "next/server"
 import { v4 as uuidv4 } from "uuid"
 
 const s3Client = new S3Client({
-  region: process.env.AWS_REGION || "us-east-1",
+  region: process.env.APP_AWS_REGION || "us-east-1",
 })
 
 /**
@@ -132,7 +132,7 @@ export async function POST(request: Request) {
 
     await s3Client.send(command)
 
-    const s3Url = `https://${bucketName}.s3.${process.env.AWS_REGION || "us-east-1"}.amazonaws.com/${fileName}`
+    const s3Url = `https://${bucketName}.s3.${process.env.APP_AWS_REGION || "us-east-1"}.amazonaws.com/${fileName}`
 
     console.log(`Successfully uploaded Figma design to S3: ${s3Url}`)
 
