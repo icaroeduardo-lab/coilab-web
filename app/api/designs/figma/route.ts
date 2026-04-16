@@ -69,44 +69,24 @@ export async function POST(request: Request) {
       )
     }
 
-    // Fetch file from Figma API
-    const figmaResponse = await fetch(
-      `https://api.figma.com/v1/files/${fileId}`,
-      {
-        headers: {
-          "X-Figma-Token": token,
-        },
-      }
-    )
+    const nodeId = extractNodeId(figmaUrl)
 
-    if (!figmaResponse.ok) {
+    if (!nodeId) {
       return NextResponse.json(
-        {
-          error: "Failed to fetch Figma file",
-          status: figmaResponse.status,
-          message: "Check your Figma token and file ID",
-        },
+        { error: "URL must contain a node-id. Use 'Copy link to selection' in Figma." },
         { status: 400 }
       )
     }
 
-    const figmaData = await figmaResponse.json()
-    const nodeId = extractNodeId(figmaUrl)
-
-    // Export as PNG - use node ID if provided, otherwise export whole file
-    const exportUrl = nodeId
-      ? `https://api.figma.com/v1/images/${fileId}?ids=${nodeId}&format=png`
-      : `https://api.figma.com/v1/images/${fileId}?format=png`
-
-    const exportResponse = await fetch(exportUrl, {
-      headers: {
-        "X-Figma-Token": token,
-      },
-    })
+    // Export frame as PNG directly
+    const exportResponse = await fetch(
+      `https://api.figma.com/v1/images/${fileId}?ids=${nodeId}&format=png&scale=2`,
+      { headers: { "X-Figma-Token": token } }
+    )
 
     if (!exportResponse.ok) {
       return NextResponse.json(
-        { error: "Failed to export design from Figma" },
+        { error: "Failed to export design from Figma. Check your token and URL." },
         { status: 400 }
       )
     }
@@ -127,24 +107,20 @@ export async function POST(request: Request) {
 
     // Upload to S3
     const fileName = `${uuidv4()}.png`
-    const command = new PutObjectCommand({
+    await s3Client.send(new PutObjectCommand({
       Bucket: bucketName,
       Key: fileName,
       Body: Buffer.from(imageBuffer),
       ContentType: "image/png",
-    })
-
-    await s3Client.send(command)
+    }))
 
     const s3Url = `https://${bucketName}.s3.${process.env.APP_AWS_REGION || "us-east-1"}.amazonaws.com/${fileName}`
-
-    console.log(`Successfully uploaded Figma design to S3: ${s3Url}`)
 
     return NextResponse.json(
       {
         success: true,
         url: s3Url,
-        title: title || figmaData.name || "Design from Figma",
+        title: title || "Design from Figma",
         description: description || "",
         fileName: fileName,
         figmaSource: figmaUrl,
