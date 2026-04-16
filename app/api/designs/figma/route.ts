@@ -25,7 +25,10 @@ function extractFigmaFileId(url: string): string | null {
  */
 function extractNodeId(url: string): string | null {
   const match = url.match(/[?#&]node-id=([^&]+)/)
-  return match ? decodeURIComponent(match[1]) : null
+  if (!match) return null
+  // Figma URLs use "-" as separator (1004-9), but the API expects ":" (1004:9)
+  const decoded = decodeURIComponent(match[1])
+  return decoded.includes(":") ? decoded : decoded.replace("-", ":")
 }
 
 export async function POST(request: Request) {

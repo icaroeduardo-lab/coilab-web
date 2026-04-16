@@ -21,7 +21,10 @@ export async function POST(request: Request) {
     const fileId = fileIdMatch[2]
 
     const nodeIdMatch = figmaUrl.match(/[?#&]node-id=([^&]+)/)
-    const nodeId = nodeIdMatch ? decodeURIComponent(nodeIdMatch[1]) : null
+    const rawNodeId = nodeIdMatch ? decodeURIComponent(nodeIdMatch[1]) : null
+    const nodeId = rawNodeId
+      ? rawNodeId.includes(":") ? rawNodeId : rawNodeId.replace("-", ":")
+      : null
 
     if (!nodeId) {
       return NextResponse.json({ error: "URL must contain a node-id (use Copy link to selection in Figma)" }, { status: 400 })
