@@ -19,11 +19,11 @@ export async function GET(request: Request) {
       )
     }
 
-    const tableName = process.env["DYNAMODB-TABLE-TASKS"]
+    const tableName = process.env.DYNAMODB_TABLE_TASKS
 
     if (!tableName) {
       return NextResponse.json(
-        { error: "DYNAMODB-TABLE-TASKS environment variable is not set" },
+        { error: "DYNAMODB_TABLE_TASKS environment variable is not set" },
         { status: 500 }
       )
     }
@@ -64,11 +64,11 @@ export async function POST(request: Request) {
       )
     }
 
-    const tableName = process.env["DYNAMODB-TABLE-TASKS"]
+    const tableName = process.env.DYNAMODB_TABLE_TASKS
 
     if (!tableName) {
       return NextResponse.json(
-        { error: "DYNAMODB-TABLE-TASKS environment variable is not set" },
+        { error: "DYNAMODB_TABLE_TASKS environment variable is not set" },
         { status: 500 }
       )
     }

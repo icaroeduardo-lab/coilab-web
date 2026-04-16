@@ -9,12 +9,12 @@ const docClient = DynamoDBDocumentClient.from(client);
 
 export async function GET() {
   try {
-    const tableName = process.env["DYNAMODB-TABLE-STATUS"];
+    const tableName = process.env.DYNAMODB_TABLE_STATUS;
 
     if (!tableName) {
-      console.error("DYNAMODB-TABLE-STATUS environment variable is not set");
+      console.error("DYNAMODB_TABLE_STATUS environment variable is not set");
       return NextResponse.json(
-        { error: "DYNAMODB-TABLE-STATUS environment variable is not set" },
+        { error: "DYNAMODB_TABLE_STATUS environment variable is not set" },
         { status: 500 }
       );
     }

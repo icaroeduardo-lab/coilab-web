@@ -13,11 +13,11 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const tableName = process.env["DYNAMODB-TABLE-TASKS"];
+    const tableName = process.env.DYNAMODB_TABLE_TASKS;
 
     if (!tableName) {
       return NextResponse.json(
-        { error: "DYNAMODB-TABLE-TASKS environment variable is not set" },
+        { error: "DYNAMODB_TABLE_TASKS environment variable is not set" },
         { status: 500 }
       );
     }
@@ -55,11 +55,11 @@ export async function PATCH(
     const body = await request.json();
     const { status, phases } = body;
 
-    const tableName = process.env["DYNAMODB-TABLE-TASKS"];
+    const tableName = process.env.DYNAMODB_TABLE_TASKS;
 
     if (!tableName) {
       return NextResponse.json(
-        { error: "DYNAMODB-TABLE-TASKS environment variable is not set" },
+        { error: "DYNAMODB_TABLE_TASKS environment variable is not set" },
         { status: 500 }
       );
     }
