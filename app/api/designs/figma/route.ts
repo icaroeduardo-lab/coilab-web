@@ -44,10 +44,10 @@ export async function POST(request: Request) {
       )
     }
 
-    const bucketName = process.env["BUCKET-DESIGN"]
+    const bucketName = process.env.BUCKET_DESIGN
     if (!bucketName) {
       return NextResponse.json(
-        { error: "BUCKET-DESIGN environment variable is not set" },
+        { error: "BUCKET_DESIGN environment variable is not set" },
         { status: 500 }
       )
     }

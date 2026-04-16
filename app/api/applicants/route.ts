@@ -9,12 +9,12 @@ const docClient = DynamoDBDocumentClient.from(client);
 
 export async function GET() {
   try {
-    const tableName = process.env["DYNAMODB-TABLE-APPLICANT"];
+    const tableName = process.env.DYNAMODB_TABLE_APPLICANT;
 
     if (!tableName) {
-      console.error("DYNAMODB-TABLE-APPLICANT environment variable is not set");
+      console.error("DYNAMODB_TABLE_APPLICANT environment variable is not set");
       return NextResponse.json(
-        { error: "DYNAMODB-TABLE-APPLICANT environment variable is not set" },
+        { error: "DYNAMODB_TABLE_APPLICANT environment variable is not set" },
         { status: 500 }
       );
     }

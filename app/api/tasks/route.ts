@@ -47,8 +47,8 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { name, project, priority, description, applicant, phases: selectedPhases = [], flows: selectedFlows = [] } = body;
 
-    const tableName = process.env["DYNAMODB-TABLE-TASKS"];
-    const flowsTableName = process.env["DYNAMODB-TABLE-FLOWS"] || "coilab-flow";
+    const tableName = process.env.DYNAMODB_TABLE_TASKS;
+    const flowsTableName = process.env.DYNAMODB_TABLE_FLOWS || "coilab-flow";
 
     if (!tableName) {
       console.error("DYNAMODB-TABLE-TASKS environment variable is not set");

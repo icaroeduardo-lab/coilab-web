@@ -6,12 +6,12 @@ export async function GET(
 ) {
   try {
     const { id } = await params
-    const bucketName = process.env["BUCKET-DESIGN"]
+    const bucketName = process.env.BUCKET_DESIGN
     const region = process.env.AWS_REGION || "us-east-1"
 
     if (!bucketName) {
       return NextResponse.json(
-        { error: "BUCKET-DESIGN environment variable is not set" },
+        { error: "BUCKET_DESIGN environment variable is not set" },
         { status: 500 }
       )
     }

@@ -9,11 +9,11 @@ const docClient = DynamoDBDocumentClient.from(client);
 
 export async function GET() {
   try {
-    const tableName = process.env["DYNAMODB-TABLE-FLOWS"] || "coilab-flow";
+    const tableName = process.env.DYNAMODB_TABLE_FLOWS || "coilab-flow";
 
     if (!tableName) {
       return NextResponse.json(
-        { error: "DYNAMODB-TABLE-FLOWS environment variable is not set" },
+        { error: "DYNAMODB_TABLE_FLOWS environment variable is not set" },
         { status: 500 }
       );
     }

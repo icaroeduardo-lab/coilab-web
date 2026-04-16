@@ -10,11 +10,11 @@ const docClient = DynamoDBDocumentClient.from(client);
 
 export async function GET() {
   try {
-    const tableName = process.env["DYNAMODB-TABLE-PROJECTS"];
+    const tableName = process.env.DYNAMODB_TABLE_PROJECTS;
 
     if (!tableName) {
       return NextResponse.json(
-        { error: "DYNAMODB-TABLE-PROJECTS environment variable is not set" },
+        { error: "DYNAMODB_TABLE_PROJECTS environment variable is not set" },
         { status: 500 }
       );
     }
@@ -40,12 +40,12 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { name, applicant, priority, description } = body;
 
-    const tableName = process.env["DYNAMODB-TABLE-PROJECTS"];
+    const tableName = process.env.DYNAMODB_TABLE_PROJECTS;
 
     if (!tableName) {
-      console.error("DYNAMODB-TABLE-PROJECTS environment variable is not set");
+      console.error("DYNAMODB_TABLE_PROJECTS environment variable is not set");
       return NextResponse.json(
-        { error: "DYNAMODB-TABLE-PROJECTS environment variable is not set" },
+        { error: "DYNAMODB_TABLE_PROJECTS environment variable is not set" },
         { status: 500 }
       );
     }
