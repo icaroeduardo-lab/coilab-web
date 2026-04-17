@@ -72,7 +72,7 @@ const DEFAULT_PHASES = [
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { name, project, priority, description, applicant, phases: selectedPhases = [], flows: selectedFlows = [] } = body;
+    const { name, project, priority, description, applicant, phases: selectedPhases = [], flows: selectedFlows = [], phaseDueDates = {} } = body;
 
     const tableName = process.env.DYNAMODB_TABLE_TASKS;
     const flowsTableName = process.env.DYNAMODB_TABLE_FLOWS || "coilab-flow";
@@ -91,6 +91,7 @@ export async function POST(request: Request) {
       status: "not_started",
       notes: "",
       checklist: [],
+      ...(phaseDueDates[p.id] ? { dueDate: phaseDueDates[p.id] } : {}),
     }));
 
     // Fetch flow data from coilab-flow table
