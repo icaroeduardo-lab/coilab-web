@@ -3,6 +3,7 @@ import Cognito from "next-auth/providers/cognito"
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   debug: true,
+  trustHost: true,
   providers: [
     Cognito({
       clientId: process.env.COGNITO_CLIENT_ID!,
