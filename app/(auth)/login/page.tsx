@@ -1,7 +1,10 @@
 "use client"
 
 import { signIn } from "next-auth/react"
+import { useSearchParams } from "next/navigation"
+import { Suspense } from "react"
 import { Button } from "@/components/ui/button"
+import { AlertCircle } from "lucide-react"
 
 function GoogleIcon() {
   return (
@@ -23,6 +26,53 @@ function GoogleIcon() {
         fill="#EA4335"
       />
     </svg>
+  )
+}
+
+function LoginForm() {
+  const searchParams = useSearchParams()
+  const error = searchParams.get("error")
+
+  const errorMessage =
+    error === "AccessDenied"
+      ? "Acesso negado. Sua conta não está autorizada a acessar este sistema."
+      : error
+      ? "Ocorreu um erro ao tentar fazer login. Tente novamente."
+      : null
+
+  return (
+    <div className="w-full max-w-sm space-y-8">
+      {/* Mobile logo */}
+      <div className="lg:hidden flex items-center gap-2">
+        <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
+          <span className="text-primary-foreground font-bold text-sm">C</span>
+        </div>
+        <span className="font-bold text-xl tracking-widest uppercase text-foreground">Coilab</span>
+      </div>
+
+      <div className="space-y-2">
+        <h1 className="text-2xl font-bold tracking-tight">Bem-vindo de volta</h1>
+        <p className="text-muted-foreground text-sm">
+          Acesse o sistema com sua conta Google institucional
+        </p>
+      </div>
+
+      {errorMessage && (
+        <div className="flex items-start gap-3 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+          <span>{errorMessage}</span>
+        </div>
+      )}
+
+      <Button
+        variant="outline"
+        className="w-full gap-3 h-11"
+        onClick={() => signIn("cognito", { callbackUrl: "/" })}
+      >
+        <GoogleIcon />
+        Entrar com Google
+      </Button>
+    </div>
   )
 }
 
@@ -66,31 +116,9 @@ export default function LoginPage() {
 
       {/* Right form panel */}
       <div className="flex-1 flex flex-col items-center justify-center px-8 bg-background">
-        <div className="w-full max-w-sm space-y-8">
-          {/* Mobile logo */}
-          <div className="lg:hidden flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-sm">C</span>
-            </div>
-            <span className="font-bold text-xl tracking-widest uppercase text-foreground">Coilab</span>
-          </div>
-
-          <div className="space-y-2">
-            <h1 className="text-2xl font-bold tracking-tight">Bem-vindo de volta</h1>
-            <p className="text-muted-foreground text-sm">
-              Acesse o sistema com sua conta Google
-            </p>
-          </div>
-
-          <Button
-            variant="outline"
-            className="w-full gap-3 h-11"
-            onClick={() => signIn("cognito", { callbackUrl: "/" })}
-          >
-            <GoogleIcon />
-            Entrar com Google
-          </Button>
-        </div>
+        <Suspense>
+          <LoginForm />
+        </Suspense>
       </div>
     </div>
   )

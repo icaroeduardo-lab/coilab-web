@@ -3,6 +3,7 @@ import { Geist_Mono } from "next/font/google"
 
 import "@/app/globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
+import { SessionProvider } from "@/components/session-provider"
 import { Nav } from "@/components/nav"
 import { cn } from "@/lib/utils";
 
@@ -26,8 +27,10 @@ export default function RootLayout({
     >
       <body>
         <ThemeProvider>
-          <Nav />
-          {children}
+          <SessionProvider>
+            <Nav />
+            {children}
+          </SessionProvider>
         </ThemeProvider>
       </body>
     </html>
