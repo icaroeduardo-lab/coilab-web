@@ -123,6 +123,7 @@ type Phase = {
 
 type Task = {
   id: string
+  taskNumber?: string
   name: string
   project: string
   applicant: string
@@ -198,6 +199,15 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 const columns: ColumnDef<Task>[] = [
+  {
+    accessorKey: "taskNumber",
+    header: "Nº",
+    cell: ({ row }) => (
+      <span className="text-xs font-mono text-muted-foreground whitespace-nowrap">
+        {row.getValue("taskNumber") ? `#${row.getValue("taskNumber")}` : "—"}
+      </span>
+    ),
+  },
   {
     accessorKey: "name",
     header: "Nome",
@@ -299,6 +309,9 @@ function SortableTaskCard({ task }: { task: Task }) {
         <Eye className="h-4 w-4" />
       </Link>
       <CardHeader className="p-4 pb-2">
+        {task.taskNumber && (
+          <span className="text-[10px] font-mono text-muted-foreground/70 mb-0.5">#{task.taskNumber}</span>
+        )}
         <CardTitle className="text-sm font-bold">{task.name}</CardTitle>
         <CardDescription className="text-xs">{task.project}</CardDescription>
       </CardHeader>

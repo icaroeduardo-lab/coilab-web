@@ -1,5 +1,5 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, PutCommand, ScanCommand } from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocumentClient, PutCommand, ScanCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import { NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
 
@@ -24,12 +24,11 @@ export async function GET() {
     }
 
     const { Items } = await docClient.send(
-      new ScanCommand({
-        TableName: tableName,
-      })
+      new ScanCommand({ TableName: tableName })
     );
 
-    return NextResponse.json(Items || []);
+    const projects = (Items || []).filter((item: any) => !String(item.id).startsWith("COUNTER#"));
+    return NextResponse.json(projects);
   } catch (error: any) {
     console.error("Error fetching projects from DynamoDB:", error);
     return NextResponse.json(
@@ -39,10 +38,25 @@ export async function GET() {
   }
 }
 
+async function getNextProjectNumber(tableName: string, year: number): Promise<string> {
+  const result = await docClient.send(
+    new UpdateCommand({
+      TableName: tableName,
+      Key: { id: `COUNTER#${year}` },
+      UpdateExpression: "ADD #seq :inc",
+      ExpressionAttributeNames: { "#seq": "seq" },
+      ExpressionAttributeValues: { ":inc": 1 },
+      ReturnValues: "UPDATED_NEW",
+    })
+  );
+  const seq = result.Attributes?.seq as number;
+  return `${year}${String(seq).padStart(4, "0")}`;
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { name, applicant, priority, description } = body;
+    const { name, description, documentPath } = body;
 
     const tableName = process.env.DYNAMODB_TABLE_PROJECTS;
 
@@ -54,13 +68,16 @@ export async function POST(request: Request) {
       );
     }
 
+    const year = new Date().getFullYear();
+    const projectNumber = await getNextProjectNumber(tableName, year);
+
     const item = {
       id: uuidv4(),
+      projectNumber,
       name,
-      applicant,
-      priority,
       description,
-      status: "Backlog",
+      ...(documentPath && { documentPath }),
+      status: "Ativo",
       createdAt: new Date().toISOString(),
     };
 

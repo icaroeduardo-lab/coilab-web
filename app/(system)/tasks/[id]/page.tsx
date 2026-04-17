@@ -27,6 +27,7 @@ type Phase = {
 
 type Task = {
   id: string
+  taskNumber?: string
   name: string
   project: string
   applicant: string
@@ -36,6 +37,7 @@ type Task = {
   description?: string
   design?: Design[]
   phases?: Phase[]
+  flows?: { id: string; name: string }[]
 }
 
 function PriorityBadge({ priority }: { priority: string }) {
@@ -373,6 +375,9 @@ export default function TaskDetailPage() {
             Voltar
           </Button>
           <div>
+            {data.taskNumber && (
+              <span className="text-xs font-mono text-muted-foreground mb-1 block">#{data.taskNumber}</span>
+            )}
             <h1 className="text-4xl font-bold tracking-tight">{data.name}</h1>
             <div className="h-0.5 w-12 bg-primary rounded-full mt-2" />
           </div>
@@ -389,8 +394,101 @@ export default function TaskDetailPage() {
             ))}
           </TabsList>
 
-          <TabsContent value="visao-geral" className="space-y-4">
-            <p className="text-muted-foreground">Detalhes da tarefa carregados.</p>
+          <TabsContent value="visao-geral" className="space-y-6">
+            {/* Info cards row */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              {data.taskNumber && (
+                <Card className="col-span-2 sm:col-span-1">
+                  <CardContent className="pt-4 pb-4">
+                    <p className="text-xs text-muted-foreground mb-1">Identificador</p>
+                    <p className="text-sm font-mono font-medium">#{data.taskNumber}</p>
+                  </CardContent>
+                </Card>
+              )}
+              <Card>
+                <CardContent className="pt-4 pb-4">
+                  <p className="text-xs text-muted-foreground mb-1">Status</p>
+                  <StatusBadge status={data.status} />
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4 pb-4">
+                  <p className="text-xs text-muted-foreground mb-1">Prioridade</p>
+                  <PriorityBadge priority={data.priority} />
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4 pb-4">
+                  <p className="text-xs text-muted-foreground mb-1">Projeto</p>
+                  <p className="text-sm font-medium truncate">{data.project || "—"}</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4 pb-4">
+                  <p className="text-xs text-muted-foreground mb-1">Solicitante</p>
+                  <p className="text-sm font-medium truncate">{data.applicant || "—"}</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Description */}
+            {data.description && (
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Descrição</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap">{data.description}</p>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Phases progress */}
+            {enabledPhases.length > 0 && (
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Fases</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {enabledPhases.map((phase) => (
+                      <div key={phase.id} className="flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className={`h-2 w-2 rounded-full shrink-0 ${
+                            phase.status === "completed" ? "bg-emerald-500" :
+                            phase.status === "in_progress" ? "bg-sky-500" : "bg-muted-foreground/30"
+                          }`} />
+                          <span className="text-sm truncate">{phase.name}</span>
+                        </div>
+                        <PhaseStatusBadge status={phase.status} />
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Flows */}
+            {data.flows && data.flows.length > 0 && (
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Fluxos Previstos</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-wrap gap-2">
+                    {data.flows.map((flow: any) => (
+                      <Badge key={flow.id} variant="secondary">{flow.name}</Badge>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Created at */}
+            <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+              <Calendar className="h-3 w-3" />
+              Criada em {new Date(data.createdAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })}
+            </p>
           </TabsContent>
 
           {/* Phase tabs */}
@@ -407,6 +505,7 @@ export default function TaskDetailPage() {
                   ) : phase.id === "design" ? (
                     <DesignManager
                       taskId={id}
+                      taskNumber={data.taskNumber}
                       initialDesigns={data.design || []}
                       onSave={async (designs) => {
                         try {
