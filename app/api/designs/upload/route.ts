@@ -16,6 +16,7 @@ export async function POST(request: Request) {
     const file = formData.get("file") as File
     const title = formData.get("title") as string
     const description = formData.get("description") as string
+    const taskNumber = formData.get("taskNumber") as string | null
 
     if (!file) {
       return NextResponse.json(
@@ -35,7 +36,9 @@ export async function POST(request: Request) {
 
     // Generate UUID for the file
     const fileExtension = file.name.split(".").pop()
-    const fileName = `${uuidv4()}.${fileExtension}`
+    const fileName = taskNumber
+      ? `${uuidv4()}-${taskNumber}.${fileExtension}`
+      : `${uuidv4()}.${fileExtension}`
 
     // Convert file to buffer
     const bytes = await file.arrayBuffer()

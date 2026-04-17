@@ -1,5 +1,5 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, PutCommand, ScanCommand } from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocumentClient, PutCommand, ScanCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import { NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
 
@@ -12,9 +12,11 @@ const client = new DynamoDBClient({
 });
 const docClient = DynamoDBDocumentClient.from(client);
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const tableName = process.env.DYNAMODB_TABLE_TASKS;
+    const { searchParams } = new URL(request.url);
+    const projectFilter = searchParams.get("project");
 
     if (!tableName) {
       return NextResponse.json(
@@ -24,12 +26,18 @@ export async function GET() {
     }
 
     const { Items } = await docClient.send(
-      new ScanCommand({
-        TableName: tableName,
-      })
+      new ScanCommand({ TableName: tableName })
     );
 
-    return NextResponse.json(Items || []);
+    let tasks = (Items || []).filter((item: any) => !String(item.id).startsWith("COUNTER#"));
+
+    if (projectFilter) {
+      tasks = tasks.filter((item: any) =>
+        String(item.project || "").toLowerCase() === projectFilter.toLowerCase()
+      );
+    }
+
+    return NextResponse.json(tasks);
   } catch (error: any) {
     console.error("Error fetching tasks from DynamoDB:", error);
     return NextResponse.json(
@@ -37,6 +45,21 @@ export async function GET() {
       { status: 500 }
     );
   }
+}
+
+async function getNextTaskNumber(tableName: string, year: number): Promise<string> {
+  const result = await docClient.send(
+    new UpdateCommand({
+      TableName: tableName,
+      Key: { id: `COUNTER#${year}` },
+      UpdateExpression: "ADD #seq :inc",
+      ExpressionAttributeNames: { "#seq": "seq" },
+      ExpressionAttributeValues: { ":inc": 1 },
+      ReturnValues: "UPDATED_NEW",
+    })
+  );
+  const seq = result.Attributes?.seq as number;
+  return `${year}${String(seq).padStart(4, "0")}`;
 }
 
 const DEFAULT_PHASES = [
@@ -88,8 +111,12 @@ export async function POST(request: Request) {
       }
     }
 
+    const year = new Date().getFullYear();
+    const taskNumber = await getNextTaskNumber(tableName, year);
+
     const item = {
       id: uuidv4(),
+      taskNumber,
       name,
       project,
       applicant,

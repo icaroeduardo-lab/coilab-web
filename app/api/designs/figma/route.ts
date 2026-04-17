@@ -34,7 +34,7 @@ function extractNodeId(url: string): string | null {
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { figmaUrl, title, description, figmaToken } = body
+    const { figmaUrl, title, description, figmaToken, taskNumber } = body
 
     if (!figmaUrl) {
       return NextResponse.json(
@@ -109,7 +109,7 @@ export async function POST(request: Request) {
     const imageBuffer = await imageResponse.arrayBuffer()
 
     // Upload to S3
-    const fileName = `${uuidv4()}.png`
+    const fileName = taskNumber ? `${uuidv4()}-${taskNumber}.png` : `${uuidv4()}.png`
     await s3Client.send(new PutObjectCommand({
       Bucket: bucketName,
       Key: fileName,

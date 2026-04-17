@@ -25,12 +25,14 @@ export type Design = {
 
 interface DesignManagerProps {
   taskId: string
+  taskNumber?: string
   initialDesigns?: Design[]
   onSave?: (designs: Design[]) => Promise<void>
 }
 
 export default function DesignManager({
   taskId,
+  taskNumber,
   initialDesigns = [],
   onSave,
 }: DesignManagerProps) {
@@ -112,6 +114,7 @@ export default function DesignManager({
       formData.append("file", uploadFile)
       formData.append("title", uploadTitle)
       formData.append("description", uploadDescription)
+      if (taskNumber) formData.append("taskNumber", taskNumber)
 
       const response = await fetch("/api/designs/upload", {
         method: "POST",
@@ -205,6 +208,7 @@ export default function DesignManager({
           title: figmaTitle,
           description: figmaDescription,
           figmaToken: figmaToken.trim() || undefined,
+          taskNumber: taskNumber || undefined,
         }),
       })
 
