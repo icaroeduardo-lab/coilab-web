@@ -320,7 +320,7 @@ export default function DashboardPage() {
                     className="flex items-center justify-between px-6 py-3 hover:bg-muted/30 transition-colors"
                   >
                     <div className="flex flex-col gap-0.5 min-w-0">
-                      <span className="text-sm font-medium truncate">{task.name}</span>
+                      <Link href={`/tasks/${task.id}`} className="text-sm font-medium truncate text-primary hover:underline">{task.name}</Link>
                       <span className="text-xs text-muted-foreground truncate">
                         {task.project}
                       </span>

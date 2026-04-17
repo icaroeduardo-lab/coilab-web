@@ -397,14 +397,6 @@ export default function TaskDetailPage() {
           <TabsContent value="visao-geral" className="space-y-6">
             {/* Info cards row */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              {data.taskNumber && (
-                <Card className="col-span-2 sm:col-span-1">
-                  <CardContent className="pt-4 pb-4">
-                    <p className="text-xs text-muted-foreground mb-1">Identificador</p>
-                    <p className="text-sm font-mono font-medium">#{data.taskNumber}</p>
-                  </CardContent>
-                </Card>
-              )}
               <Card>
                 <CardContent className="pt-4 pb-4">
                   <p className="text-xs text-muted-foreground mb-1">Status</p>
