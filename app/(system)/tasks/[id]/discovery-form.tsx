@@ -13,7 +13,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion"
 import { Label } from "@/components/ui/label"
-import { Loader2 } from "lucide-react"
+import { Loader2, CheckCircle2, Save, Calendar, PlayCircle } from "lucide-react"
 import useSWR from "swr"
 
 type Phase = {
@@ -22,6 +22,8 @@ type Phase = {
   order: number
   enabled: boolean
   status: "not_started" | "in_progress" | "completed"
+  dueDate?: string
+  startedAt?: string
   completedAt?: string
   notes?: string
   checklist: { id: string; label: string; completed: boolean }[]
@@ -86,8 +88,8 @@ const complexSchema = baseSchema.extend({
   benchmark: z.string().min(1, "Benchmark é obrigatório"),
 })
 
-type FormData = z.infer<typeof baseSchema>
-type ComplexFormData = z.infer<typeof complexSchema>
+// Partial schema for draft saving (no required fields)
+const draftSchema = baseSchema.partial()
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -96,31 +98,28 @@ function DiscoveryForm({
   taskId,
   initialData,
   taskData: externalTaskData,
-  onSave,
-  onCancel,
+  onSaved,
 }: {
   phase: Phase
   taskId: string
   initialData?: DiscoveryData
   taskData?: Task
-  onSave: () => void
-  onCancel: () => void
+  onSaved: (completed?: boolean) => void
 }) {
-  const [isLoading, setIsLoading] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [isCompleting, setIsCompleting] = useState(false)
   const { data: fetchedTaskData, mutate } = useSWR<Task>(`/api/tasks/${taskId}`, fetcher)
   const taskData = externalTaskData || fetchedTaskData
 
   const defaultComplexity = initialData?.complexity || "small"
   const schema = defaultComplexity === "complex" ? complexSchema : baseSchema
 
-  // Mapear flows da tarefa para o campo flow (interno, coppe, externo)
   const getDefaultFlow = () => {
     if (initialData?.flow) return initialData.flow
     if (taskData?.flows && taskData.flows.length > 0) {
       const flowName = taskData.flows[0].name.toLowerCase()
       if (flowName.includes("coppe")) return "coppe"
       if (flowName.includes("externo")) return "externo"
-      // Adicionar mais mapeamentos conforme necessário
     }
     return "interno"
   }
@@ -130,6 +129,7 @@ function DiscoveryForm({
     handleSubmit,
     watch,
     control,
+    getValues,
     formState: { errors },
   } = useForm({
     resolver: zodResolver(schema) as any,
@@ -147,56 +147,135 @@ function DiscoveryForm({
 
   const complexity = watch("complexity")
 
-  const onSubmit = async (data: any) => {
+  const buildDiscoveryData = (data: any): DiscoveryData => ({
+    projectName: data.projectName || "",
+    sector: data.sector || taskData?.applicant || "",
+    complexity: data.complexity || "small",
+    flow: data.flow || "interno",
+    problemSummary: data.problemSummary || "",
+    userPains: data.userPains || "",
+    frequency: data.frequency || "eventual",
+    currentProcess: data.currentProcess || "",
+    inactionCost: data.inactionCost || "",
+    volume: data.volume || "",
+    averageTime: data.averageTime || "",
+    humanDependency: data.humanDependency || "media",
+    institutionalPriority: data.institutionalPriority || "media",
+    aiPotential: data.aiPotential || "medio",
+    technicalOpinion: data.technicalOpinion || "",
+    ...(data.complexity === "complex" && {
+      reworkRate: data.reworkRate || "",
+      previousAttempts: data.previousAttempts || "",
+      benchmark: data.benchmark || "",
+    }),
+  })
+
+  const saveToPhase = async (discoveryData: DiscoveryData, action?: "start" | "complete") => {
     if (!taskData) return
-    setIsLoading(true)
-    try {
-      const discoveryData: DiscoveryData = {
-        projectName: data.projectName,
-        sector: data.sector || taskData.applicant || "",
-        complexity: data.complexity,
-        flow: data.flow,
-        problemSummary: data.problemSummary,
-        userPains: data.userPains,
-        frequency: data.frequency,
-        currentProcess: data.currentProcess,
-        inactionCost: data.inactionCost,
-        volume: data.volume,
-        averageTime: data.averageTime,
-        humanDependency: data.humanDependency,
-        institutionalPriority: data.institutionalPriority,
-        aiPotential: data.aiPotential,
-        technicalOpinion: data.technicalOpinion,
-        ...(data.complexity === "complex" && {
-          reworkRate: data.reworkRate,
-          previousAttempts: data.previousAttempts,
-          benchmark: data.benchmark,
-        }),
-      }
 
-      const updatedPhases = taskData.phases?.map(p =>
-        p.id === phase.id
-          ? { ...p, discoveryData, status: "in_progress" }
-          : p
-      ) || []
+    // Save discovery data via partial phase update
+    await fetch(`/api/tasks/${taskId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        phases: [{ id: phase.id, discoveryData }],
+        partialPhaseUpdate: true,
+      }),
+    })
 
-      await fetch(`/api/tasks/${taskId}`, {
+    // Then update phase status if needed
+    if (action === "start" && phase.status === "not_started") {
+      await fetch(`/api/tasks/${taskId}/phases/${phase.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phases: updatedPhases }),
+        body: JSON.stringify({ action: "start" }),
       })
+    } else if (action === "complete") {
+      await fetch(`/api/tasks/${taskId}/phases/${phase.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "complete" }),
+      })
+    }
 
-      mutate()
-      onSave()
+    mutate()
+  }
+
+  const handleSaveDraft = async () => {
+    const data = getValues()
+    setIsSaving(true)
+    try {
+      const discoveryData = buildDiscoveryData(data)
+      await saveToPhase(discoveryData)
+      onSaved(false)
     } catch (error) {
-      console.error("Error saving discovery:", error)
+      console.error("Error saving draft:", error)
     } finally {
-      setIsLoading(false)
+      setIsSaving(false)
     }
   }
 
+  const handleFinalize = async (data: any) => {
+    setIsCompleting(true)
+    try {
+      const discoveryData = buildDiscoveryData(data)
+      await saveToPhase(discoveryData, "complete")
+      onSaved(true)
+    } catch (error) {
+      console.error("Error finalizing discovery:", error)
+    } finally {
+      setIsCompleting(false)
+    }
+  }
+
+  const fmtDate = (iso?: string) =>
+    iso ? new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" }) : "—"
+
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+    <form className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-lg bg-muted/40 border mb-2">
+        <div className="flex flex-wrap gap-4 text-xs">
+          <div className="flex items-center gap-1.5">
+            <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-muted-foreground">Entrega prevista:</span>
+            <span className="font-medium">{fmtDate(phase.dueDate)}</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <PlayCircle className="h-3.5 w-3.5 text-sky-500" />
+            <span className="text-muted-foreground">Início:</span>
+            <span className="font-medium">{fmtDate(phase.startedAt)}</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+            <span className="text-muted-foreground">Conclusão:</span>
+            <span className="font-medium">{fmtDate(phase.completedAt)}</span>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={isSaving || isCompleting}
+            onClick={handleSaveDraft}
+            className="gap-2"
+          >
+            {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+            Salvar Rascunho
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            disabled={isSaving || isCompleting}
+            onClick={handleSubmit(handleFinalize)}
+            className="gap-2"
+          >
+            {isCompleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+            Finalizar Discovery
+          </Button>
+        </div>
+      </div>
+
       <div>
         <label className="text-sm font-semibold block mb-3">
           Complexidade Inicial *
@@ -218,7 +297,7 @@ function DiscoveryForm({
           )}
         />
         {errors.complexity && (
-          <p className="text-xs text-destructive mt-1">{errors.complexity.message}</p>
+          <p className="text-xs text-destructive mt-1">{errors.complexity.message as string}</p>
         )}
       </div>
 
@@ -227,18 +306,14 @@ function DiscoveryForm({
         <h3 className="text-sm font-semibold mb-4">1. Identificação e Triagem</h3>
         <div className="space-y-4">
           <div>
-            <label className="text-sm font-medium block mb-1">
-              Nome do Projeto *
-            </label>
+            <label className="text-sm font-medium block mb-1">Nome do Projeto *</label>
             <input
               {...register("projectName")}
               placeholder="Digite o nome do projeto"
               className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
             />
             {errors.projectName && (
-              <p className="text-xs text-destructive mt-1">
-                {errors.projectName.message}
-              </p>
+              <p className="text-xs text-destructive mt-1">{errors.projectName.message as string}</p>
             )}
           </div>
 
@@ -247,9 +322,7 @@ function DiscoveryForm({
               Setor/Área <span className="text-xs text-muted-foreground">(preenchido automaticamente)</span>
             </label>
             {taskData?.applicant ? (
-              <Badge variant="secondary" className="text-sm px-3 py-1">
-                {taskData.applicant}
-              </Badge>
+              <Badge variant="secondary" className="text-sm px-3 py-1">{taskData.applicant}</Badge>
             ) : (
               <span className="text-sm text-muted-foreground">Não informado</span>
             )}
@@ -262,29 +335,12 @@ function DiscoveryForm({
             <div className="flex flex-wrap gap-2">
               {taskData?.flows && taskData.flows.length > 0 ? (
                 taskData.flows.map((flow) => (
-                  <label
-                    key={flow.id}
-                    className="inline-flex items-center px-3 py-2 rounded-full border-2 border-primary bg-primary/10 text-primary cursor-pointer hover:bg-primary/20 transition-colors"
-                  >
-                    <input
-                      type="checkbox"
-                      value={flow.id}
-                      checked={true}
-                      disabled
-                      className="cursor-not-allowed"
-                    />
-                    <span className="ml-2 text-sm font-medium">{flow.name}</span>
-                  </label>
+                  <Badge key={flow.id} className="uppercase">{flow.name}</Badge>
                 ))
               ) : (
                 <span className="text-sm text-muted-foreground">Nenhum fluxo associado</span>
               )}
             </div>
-            {errors.flow && (
-              <p className="text-xs text-destructive mt-2">
-                {errors.flow.message}
-              </p>
-            )}
           </div>
         </div>
       </div>
@@ -294,101 +350,73 @@ function DiscoveryForm({
         <h3 className="text-sm font-semibold mb-4">2. Diagnóstico do Problema</h3>
         <div className="space-y-4">
           <div>
-            <label className="text-sm font-medium block mb-1">
-              Resumo em 1 Frase *
-            </label>
+            <label className="text-sm font-medium block mb-1">Resumo em 1 Frase *</label>
             <input
               {...register("problemSummary")}
               placeholder="Resuma o problema em uma frase"
               className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
             />
             {errors.problemSummary && (
-              <p className="text-xs text-destructive mt-1">
-                {errors.problemSummary.message}
-              </p>
+              <p className="text-xs text-destructive mt-1">{errors.problemSummary.message as string}</p>
             )}
           </div>
 
           <div>
-            <label className="text-sm font-medium block mb-1">
-              Dores do Usuário *
-            </label>
+            <label className="text-sm font-medium block mb-1">Dores do Usuário *</label>
             <textarea
               {...register("userPains")}
               placeholder="Descreva as dores do usuário"
               className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary min-h-20"
             />
             {errors.userPains && (
-              <p className="text-xs text-destructive mt-1">
-                {errors.userPains.message}
-              </p>
+              <p className="text-xs text-destructive mt-1">{errors.userPains.message as string}</p>
             )}
           </div>
 
           <div>
-            <label className="text-sm font-medium block mb-3">
-              Frequência *
-            </label>
+            <label className="text-sm font-medium block mb-3">Frequência *</label>
             <Controller
               control={control}
               name="frequency"
               render={({ field }) => (
                 <div className="flex gap-4 flex-wrap">
-                  <div className="flex items-center space-x-1.5">
-                    <input type="radio" id="frequency-diario" value="diario" checked={field.value === "diario"} onChange={() => field.onChange("diario")} className="cursor-pointer" />
-                    <Label htmlFor="frequency-diario" className="font-normal cursor-pointer">Diário</Label>
-                  </div>
-                  <div className="flex items-center space-x-1.5">
-                    <input type="radio" id="frequency-semanal" value="semanal" checked={field.value === "semanal"} onChange={() => field.onChange("semanal")} className="cursor-pointer" />
-                    <Label htmlFor="frequency-semanal" className="font-normal cursor-pointer">Semanal</Label>
-                  </div>
-                  <div className="flex items-center space-x-1.5">
-                    <input type="radio" id="frequency-mensal" value="mensal" checked={field.value === "mensal"} onChange={() => field.onChange("mensal")} className="cursor-pointer" />
-                    <Label htmlFor="frequency-mensal" className="font-normal cursor-pointer">Mensal</Label>
-                  </div>
-                  <div className="flex items-center space-x-1.5">
-                    <input type="radio" id="frequency-eventual" value="eventual" checked={field.value === "eventual"} onChange={() => field.onChange("eventual")} className="cursor-pointer" />
-                    <Label htmlFor="frequency-eventual" className="font-normal cursor-pointer">Eventual</Label>
-                  </div>
+                  {[
+                    { value: "diario", label: "Diário" },
+                    { value: "semanal", label: "Semanal" },
+                    { value: "mensal", label: "Mensal" },
+                    { value: "eventual", label: "Eventual" },
+                  ].map(({ value, label }) => (
+                    <div key={value} className="flex items-center space-x-1.5">
+                      <input type="radio" id={`frequency-${value}`} value={value} checked={field.value === value} onChange={() => field.onChange(value)} className="cursor-pointer" />
+                      <Label htmlFor={`frequency-${value}`} className="font-normal cursor-pointer">{label}</Label>
+                    </div>
+                  ))}
                 </div>
               )}
             />
-            {errors.frequency && (
-              <p className="text-xs text-destructive mt-1">
-                {errors.frequency.message}
-              </p>
-            )}
           </div>
 
           <div>
-            <label className="text-sm font-medium block mb-1">
-              Passo a Passo Atual *
-            </label>
+            <label className="text-sm font-medium block mb-1">Passo a Passo Atual *</label>
             <textarea
               {...register("currentProcess")}
               placeholder="Descreva o processo atual"
               className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary min-h-20"
             />
             {errors.currentProcess && (
-              <p className="text-xs text-destructive mt-1">
-                {errors.currentProcess.message}
-              </p>
+              <p className="text-xs text-destructive mt-1">{errors.currentProcess.message as string}</p>
             )}
           </div>
 
           <div>
-            <label className="text-sm font-medium block mb-1">
-              Custo da Inação *
-            </label>
+            <label className="text-sm font-medium block mb-1">Custo da Inação *</label>
             <textarea
               {...register("inactionCost")}
               placeholder="Qual é o custo de não resolver?"
               className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary min-h-20"
             />
             {errors.inactionCost && (
-              <p className="text-xs text-destructive mt-1">
-                {errors.inactionCost.message}
-              </p>
+              <p className="text-xs text-destructive mt-1">{errors.inactionCost.message as string}</p>
             )}
           </div>
         </div>
@@ -399,124 +427,93 @@ function DiscoveryForm({
         <h3 className="text-sm font-semibold mb-4">3. Dados para Decisão</h3>
         <div className="space-y-4">
           <div>
-            <label className="text-sm font-medium block mb-1">
-              Volume *
-            </label>
+            <label className="text-sm font-medium block mb-1">Volume *</label>
             <input
               {...register("volume")}
               placeholder="Ex: 1000 registros/mês"
               className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
             />
             {errors.volume && (
-              <p className="text-xs text-destructive mt-1">
-                {errors.volume.message}
-              </p>
+              <p className="text-xs text-destructive mt-1">{errors.volume.message as string}</p>
             )}
           </div>
 
           <div>
-            <label className="text-sm font-medium block mb-1">
-              Tempo Médio *
-            </label>
+            <label className="text-sm font-medium block mb-1">Tempo Médio *</label>
             <input
               {...register("averageTime")}
               placeholder="Ex: 2 horas por processo"
               className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
             />
             {errors.averageTime && (
-              <p className="text-xs text-destructive mt-1">
-                {errors.averageTime.message}
-              </p>
+              <p className="text-xs text-destructive mt-1">{errors.averageTime.message as string}</p>
             )}
           </div>
 
           <div>
-            <label className="text-sm font-medium block mb-3">
-              Dependência Humana *
-            </label>
+            <label className="text-sm font-medium block mb-3">Dependência Humana *</label>
             <Controller
               control={control}
               name="humanDependency"
               render={({ field }) => (
                 <div className="flex gap-4">
-                  <div className="flex items-center space-x-1.5">
-                    <input type="radio" id="humanDependency-alta" value="alta" checked={field.value === "alta"} onChange={() => field.onChange("alta")} className="cursor-pointer" />
-                    <Label htmlFor="humanDependency-alta" className="font-normal cursor-pointer">Alta</Label>
-                  </div>
-                  <div className="flex items-center space-x-1.5">
-                    <input type="radio" id="humanDependency-media" value="media" checked={field.value === "media"} onChange={() => field.onChange("media")} className="cursor-pointer" />
-                    <Label htmlFor="humanDependency-media" className="font-normal cursor-pointer">Média</Label>
-                  </div>
-                  <div className="flex items-center space-x-1.5">
-                    <input type="radio" id="humanDependency-baixa" value="baixa" checked={field.value === "baixa"} onChange={() => field.onChange("baixa")} className="cursor-pointer" />
-                    <Label htmlFor="humanDependency-baixa" className="font-normal cursor-pointer">Baixa</Label>
-                  </div>
+                  {[
+                    { value: "alta", label: "Alta" },
+                    { value: "media", label: "Média" },
+                    { value: "baixa", label: "Baixa" },
+                  ].map(({ value, label }) => (
+                    <div key={value} className="flex items-center space-x-1.5">
+                      <input type="radio" id={`humanDependency-${value}`} value={value} checked={field.value === value} onChange={() => field.onChange(value)} className="cursor-pointer" />
+                      <Label htmlFor={`humanDependency-${value}`} className="font-normal cursor-pointer">{label}</Label>
+                    </div>
+                  ))}
                 </div>
               )}
             />
-            {errors.humanDependency && (
-              <p className="text-xs text-destructive mt-1">
-                {errors.humanDependency.message}
-              </p>
-            )}
           </div>
 
           {complexity === "complex" && (
-            <>
-              <div>
-                <label className="text-sm font-medium block mb-1">
-                  Retrabalho/Erro *
-                </label>
-                <input
-                  {...register("reworkRate")}
-                  placeholder="Qual é a taxa de retrabalho/erro?"
-                  className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-                {errors.reworkRate && (
-                  <p className="text-xs text-destructive mt-1">
-                    {errors.reworkRate.message}
-                  </p>
-                )}
-              </div>
-            </>
+            <div>
+              <label className="text-sm font-medium block mb-1">Retrabalho/Erro *</label>
+              <input
+                {...register("reworkRate")}
+                placeholder="Qual é a taxa de retrabalho/erro?"
+                className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+              {errors.reworkRate && (
+                <p className="text-xs text-destructive mt-1">{errors.reworkRate.message as string}</p>
+              )}
+            </div>
           )}
         </div>
       </div>
 
-      {/* Histórico e Benchmark - Only for complex */}
+      {/* Histórico e Benchmark */}
       {complexity === "complex" && (
         <div className="border-t pt-6">
           <h3 className="text-sm font-semibold mb-4">4. Histórico e Benchmark</h3>
           <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium block mb-1">
-                Tentativas Anteriores *
-              </label>
+              <label className="text-sm font-medium block mb-1">Tentativas Anteriores *</label>
               <textarea
                 {...register("previousAttempts")}
                 placeholder="Descreva tentativas anteriores para resolver este problema"
                 className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary min-h-20"
               />
               {errors.previousAttempts && (
-                <p className="text-xs text-destructive mt-1">
-                  {errors.previousAttempts.message}
-                </p>
+                <p className="text-xs text-destructive mt-1">{errors.previousAttempts.message as string}</p>
               )}
             </div>
 
             <div>
-              <label className="text-sm font-medium block mb-1">
-                Benchmark *
-              </label>
+              <label className="text-sm font-medium block mb-1">Benchmark *</label>
               <textarea
                 {...register("benchmark")}
                 placeholder="Como outras organizações resolvem este problema?"
                 className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary min-h-20"
               />
               {errors.benchmark && (
-                <p className="text-xs text-destructive mt-1">
-                  {errors.benchmark.message}
-                </p>
+                <p className="text-xs text-destructive mt-1">{errors.benchmark.message as string}</p>
               )}
             </div>
           </div>
@@ -525,109 +522,66 @@ function DiscoveryForm({
 
       {/* Avaliação do Analista */}
       <div className="border-t pt-6">
-        <h3 className="text-sm font-semibold mb-4">5. Avaliação do Analista</h3>
+        <h3 className="text-sm font-semibold mb-4">{complexity === "complex" ? "5." : "4."} Avaliação do Analista</h3>
         <div className="space-y-4">
           <div>
-            <label className="text-sm font-medium block mb-3">
-              Prioridade Institucional *
-            </label>
+            <label className="text-sm font-medium block mb-3">Prioridade Institucional *</label>
             <Controller
               control={control}
               name="institutionalPriority"
               render={({ field }) => (
                 <div className="flex gap-4">
-                  <div className="flex items-center space-x-1.5">
-                    <input type="radio" id="institutionalPriority-alta" value="alta" checked={field.value === "alta"} onChange={() => field.onChange("alta")} className="cursor-pointer" />
-                    <Label htmlFor="institutionalPriority-alta" className="font-normal cursor-pointer">Alta</Label>
-                  </div>
-                  <div className="flex items-center space-x-1.5">
-                    <input type="radio" id="institutionalPriority-media" value="media" checked={field.value === "media"} onChange={() => field.onChange("media")} className="cursor-pointer" />
-                    <Label htmlFor="institutionalPriority-media" className="font-normal cursor-pointer">Média</Label>
-                  </div>
-                  <div className="flex items-center space-x-1.5">
-                    <input type="radio" id="institutionalPriority-baixa" value="baixa" checked={field.value === "baixa"} onChange={() => field.onChange("baixa")} className="cursor-pointer" />
-                    <Label htmlFor="institutionalPriority-baixa" className="font-normal cursor-pointer">Baixa</Label>
-                  </div>
+                  {[
+                    { value: "alta", label: "Alta" },
+                    { value: "media", label: "Média" },
+                    { value: "baixa", label: "Baixa" },
+                  ].map(({ value, label }) => (
+                    <div key={value} className="flex items-center space-x-1.5">
+                      <input type="radio" id={`institutionalPriority-${value}`} value={value} checked={field.value === value} onChange={() => field.onChange(value)} className="cursor-pointer" />
+                      <Label htmlFor={`institutionalPriority-${value}`} className="font-normal cursor-pointer">{label}</Label>
+                    </div>
+                  ))}
                 </div>
               )}
             />
-            {errors.institutionalPriority && (
-              <p className="text-xs text-destructive mt-1">
-                {errors.institutionalPriority.message}
-              </p>
-            )}
           </div>
 
           <div>
-            <label className="text-sm font-medium block mb-3">
-              Potencial de IA/Automação *
-            </label>
+            <label className="text-sm font-medium block mb-3">Potencial de IA/Automação *</label>
             <Controller
               control={control}
               name="aiPotential"
               render={({ field }) => (
                 <div className="flex gap-4">
-                  <div className="flex items-center space-x-1.5">
-                    <input type="radio" id="aiPotential-alto" value="alto" checked={field.value === "alto"} onChange={() => field.onChange("alto")} className="cursor-pointer" />
-                    <Label htmlFor="aiPotential-alto" className="font-normal cursor-pointer">Alto</Label>
-                  </div>
-                  <div className="flex items-center space-x-1.5">
-                    <input type="radio" id="aiPotential-medio" value="medio" checked={field.value === "medio"} onChange={() => field.onChange("medio")} className="cursor-pointer" />
-                    <Label htmlFor="aiPotential-medio" className="font-normal cursor-pointer">Médio</Label>
-                  </div>
-                  <div className="flex items-center space-x-1.5">
-                    <input type="radio" id="aiPotential-baixo" value="baixo" checked={field.value === "baixo"} onChange={() => field.onChange("baixo")} className="cursor-pointer" />
-                    <Label htmlFor="aiPotential-baixo" className="font-normal cursor-pointer">Baixo</Label>
-                  </div>
+                  {[
+                    { value: "alto", label: "Alto" },
+                    { value: "medio", label: "Médio" },
+                    { value: "baixo", label: "Baixo" },
+                  ].map(({ value, label }) => (
+                    <div key={value} className="flex items-center space-x-1.5">
+                      <input type="radio" id={`aiPotential-${value}`} value={value} checked={field.value === value} onChange={() => field.onChange(value)} className="cursor-pointer" />
+                      <Label htmlFor={`aiPotential-${value}`} className="font-normal cursor-pointer">{label}</Label>
+                    </div>
+                  ))}
                 </div>
               )}
             />
-            {errors.aiPotential && (
-              <p className="text-xs text-destructive mt-1">
-                {errors.aiPotential.message}
-              </p>
-            )}
           </div>
 
           <div>
-            <label className="text-sm font-medium block mb-1">
-              Parecer Técnico *
-            </label>
+            <label className="text-sm font-medium block mb-1">Parecer Técnico *</label>
             <textarea
               {...register("technicalOpinion")}
               placeholder="Qual é seu parecer técnico sobre este problema?"
               className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary min-h-20"
             />
             {errors.technicalOpinion && (
-              <p className="text-xs text-destructive mt-1">
-                {errors.technicalOpinion.message}
-              </p>
+              <p className="text-xs text-destructive mt-1">{errors.technicalOpinion.message as string}</p>
             )}
           </div>
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-2 border-t pt-6">
-        <Button type="submit" disabled={isLoading} className="flex-1">
-          {isLoading ? (
-            <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Salvando...
-            </>
-          ) : (
-            "Salvar Discovery"
-          )}
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onCancel}
-          disabled={isLoading}
-          className="flex-1"
-        >
-          Cancelar
-        </Button>
-      </div>
     </form>
   )
 }
@@ -655,59 +609,21 @@ function DiscoveryDisplay({ data }: { data: DiscoveryData }) {
   }
 
   const formatValue = (key: string, value: any) => {
-    if (key === "complexity") {
-      return value === "small" ? "Pequena" : "Média/Complexa"
+    const maps: Record<string, Record<string, string>> = {
+      complexity: { small: "Pequena", complex: "Média/Complexa" },
+      flow: { interno: "Interno", coppe: "COPPE", externo: "Externo" },
+      frequency: { diario: "Diário", semanal: "Semanal", mensal: "Mensal", eventual: "Eventual" },
+      humanDependency: { alta: "Alta", media: "Média", baixa: "Baixa" },
+      institutionalPriority: { alta: "Alta", media: "Média", baixa: "Baixa" },
+      aiPotential: { alto: "Alto", medio: "Médio", baixo: "Baixo" },
     }
-    if (key === "flow") {
-      const flowMap: Record<string, string> = {
-        interno: "Interno",
-        coppe: "COPPE",
-        externo: "Externo",
-      }
-      return flowMap[value] || value
-    }
-    if (["frequency", "humanDependency", "institutionalPriority"].includes(key)) {
-      const mapValues: Record<string, Record<string, string>> = {
-        frequency: {
-          diario: "Diário",
-          semanal: "Semanal",
-          mensal: "Mensal",
-          eventual: "Eventual",
-        },
-        humanDependency: {
-          alta: "Alta",
-          media: "Média",
-          baixa: "Baixa",
-        },
-        institutionalPriority: {
-          alta: "Alta",
-          media: "Média",
-          baixa: "Baixa",
-        },
-      }
-      return mapValues[key]?.[value] || value
-    }
-    if (key === "aiPotential") {
-      const aiMap: Record<string, string> = {
-        alto: "Alto",
-        medio: "Médio",
-        baixo: "Baixo",
-      }
-      return aiMap[value] || value
-    }
-    return value
+    return maps[key]?.[value] ?? value
   }
 
   return (
     <Accordion
       type="multiple"
-      defaultValue={[
-        "identificacao",
-        "diagnostico",
-        "dados",
-        "historico",
-        "avaliacao",
-      ]}
+      defaultValue={["identificacao", "diagnostico", "dados", "historico", "avaliacao"]}
       className="space-y-2"
     >
       <AccordionItem value="identificacao">
@@ -715,12 +631,8 @@ function DiscoveryDisplay({ data }: { data: DiscoveryData }) {
         <AccordionContent className="space-y-3">
           {["projectName", "sector", "complexity", "flow"].map(key => (
             <div key={key}>
-              <h4 className="text-xs font-semibold text-muted-foreground mb-1">
-                {labelMap[key]}
-              </h4>
-              <p className="text-sm text-foreground">
-                {formatValue(key, data[key as keyof DiscoveryData])}
-              </p>
+              <h4 className="text-xs font-semibold text-muted-foreground mb-1">{labelMap[key]}</h4>
+              <p className="text-sm text-foreground">{formatValue(key, data[key as keyof DiscoveryData])}</p>
             </div>
           ))}
         </AccordionContent>
@@ -729,20 +641,10 @@ function DiscoveryDisplay({ data }: { data: DiscoveryData }) {
       <AccordionItem value="diagnostico">
         <AccordionTrigger>2. Diagnóstico do Problema</AccordionTrigger>
         <AccordionContent className="space-y-3">
-          {[
-            "problemSummary",
-            "userPains",
-            "frequency",
-            "currentProcess",
-            "inactionCost",
-          ].map(key => (
+          {["problemSummary", "userPains", "frequency", "currentProcess", "inactionCost"].map(key => (
             <div key={key}>
-              <h4 className="text-xs font-semibold text-muted-foreground mb-1">
-                {labelMap[key]}
-              </h4>
-              <p className="text-sm text-foreground whitespace-pre-wrap">
-                {formatValue(key, data[key as keyof DiscoveryData])}
-              </p>
+              <h4 className="text-xs font-semibold text-muted-foreground mb-1">{labelMap[key]}</h4>
+              <p className="text-sm text-foreground whitespace-pre-wrap">{formatValue(key, data[key as keyof DiscoveryData])}</p>
             </div>
           ))}
         </AccordionContent>
@@ -751,18 +653,12 @@ function DiscoveryDisplay({ data }: { data: DiscoveryData }) {
       <AccordionItem value="dados">
         <AccordionTrigger>3. Dados para Decisão</AccordionTrigger>
         <AccordionContent className="space-y-3">
-          {["volume", "averageTime", "humanDependency", ...(data.reworkRate ? ["reworkRate"] : [])].map(
-            key => (
-              <div key={key}>
-                <h4 className="text-xs font-semibold text-muted-foreground mb-1">
-                  {labelMap[key]}
-                </h4>
-                <p className="text-sm text-foreground">
-                  {formatValue(key, data[key as keyof DiscoveryData])}
-                </p>
-              </div>
-            )
-          )}
+          {["volume", "averageTime", "humanDependency", ...(data.reworkRate ? ["reworkRate"] : [])].map(key => (
+            <div key={key}>
+              <h4 className="text-xs font-semibold text-muted-foreground mb-1">{labelMap[key]}</h4>
+              <p className="text-sm text-foreground">{formatValue(key, data[key as keyof DiscoveryData])}</p>
+            </div>
+          ))}
         </AccordionContent>
       </AccordionItem>
 
@@ -772,12 +668,8 @@ function DiscoveryDisplay({ data }: { data: DiscoveryData }) {
           <AccordionContent className="space-y-3">
             {["previousAttempts", "benchmark"].map(key => (
               <div key={key}>
-                <h4 className="text-xs font-semibold text-muted-foreground mb-1">
-                  {labelMap[key]}
-                </h4>
-                <p className="text-sm text-foreground whitespace-pre-wrap">
-                  {data[key as keyof DiscoveryData]}
-                </p>
+                <h4 className="text-xs font-semibold text-muted-foreground mb-1">{labelMap[key]}</h4>
+                <p className="text-sm text-foreground whitespace-pre-wrap">{data[key as keyof DiscoveryData]}</p>
               </div>
             ))}
           </AccordionContent>
@@ -785,20 +677,12 @@ function DiscoveryDisplay({ data }: { data: DiscoveryData }) {
       )}
 
       <AccordionItem value="avaliacao">
-        <AccordionTrigger>5. Avaliação do Analista</AccordionTrigger>
+        <AccordionTrigger>{data.complexity === "complex" ? "5." : "4."} Avaliação do Analista</AccordionTrigger>
         <AccordionContent className="space-y-3">
-          {[
-            "institutionalPriority",
-            "aiPotential",
-            "technicalOpinion",
-          ].map(key => (
+          {["institutionalPriority", "aiPotential", "technicalOpinion"].map(key => (
             <div key={key}>
-              <h4 className="text-xs font-semibold text-muted-foreground mb-1">
-                {labelMap[key]}
-              </h4>
-              <p className="text-sm text-foreground whitespace-pre-wrap">
-                {formatValue(key, data[key as keyof DiscoveryData])}
-              </p>
+              <h4 className="text-xs font-semibold text-muted-foreground mb-1">{labelMap[key]}</h4>
+              <p className="text-sm text-foreground whitespace-pre-wrap">{formatValue(key, data[key as keyof DiscoveryData])}</p>
             </div>
           ))}
         </AccordionContent>
@@ -817,82 +701,66 @@ export function DiscoveryPhaseTab({
   onPhaseUpdate: (phases: Phase[]) => void
 }) {
   const { data: taskData, mutate } = useSWR<Task>(`/api/tasks/${taskId}`, fetcher)
-  const [isFormOpen, setIsFormOpen] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
+  const [isStarting, setIsStarting] = useState(false)
 
-  const handleEditClick = async () => {
-    if (!taskData) return
-    setIsLoading(true)
+  const handleStart = async () => {
+    setIsStarting(true)
     try {
-      const updatedPhases = taskData.phases?.map(p =>
-        p.id === phase.id ? { ...p, status: "in_progress" } : p
-      ) || []
-
-      await fetch(`/api/tasks/${taskId}`, {
+      await fetch(`/api/tasks/${taskId}/phases/${phase.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phases: updatedPhases }),
+        body: JSON.stringify({ action: "start" }),
       })
-
       mutate()
-      setIsFormOpen(true)
+      onPhaseUpdate([])
     } catch (error) {
-      console.error("Error:", error)
+      console.error("Error starting phase:", error)
     } finally {
-      setIsLoading(false)
+      setIsStarting(false)
     }
   }
 
-  if (phase.discoveryData && !isFormOpen) {
+  // Not started: show only the Iniciar button
+  if (phase.status === "not_started") {
     return (
-      <div className="space-y-6">
-        <DiscoveryDisplay data={phase.discoveryData} />
-        <Button
-          onClick={handleEditClick}
-          variant="outline"
-          disabled={isLoading}
-          className="w-full sm:w-auto"
-        >
-          {isLoading ? (
-            <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Carregando...
-            </>
-          ) : (
-            "Editar Discovery"
-          )}
+      <div className="flex items-center gap-3 p-4 rounded-lg border border-dashed">
+        <div className="flex-1">
+          <p className="text-sm font-medium">Discovery</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Clique em Iniciar para começar o preenchimento</p>
+        </div>
+        <Button onClick={handleStart} disabled={isStarting} className="gap-2 shrink-0">
+          {isStarting ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
+          Iniciar
         </Button>
       </div>
     )
   }
 
-  if (isFormOpen) {
+  // Completed with data: show read-only view with Edit button
+  if (phase.status === "completed" && phase.discoveryData && !isEditing) {
     return (
-      <DiscoveryForm
-        phase={phase}
-        taskId={taskId}
-        initialData={phase.discoveryData}
-        taskData={taskData}
-        onSave={() => {
-          setIsFormOpen(false)
-          mutate()
-        }}
-        onCancel={() => setIsFormOpen(false)}
-      />
+      <div className="space-y-6">
+        <DiscoveryDisplay data={phase.discoveryData} />
+        <Button variant="outline" onClick={() => setIsEditing(true)} className="gap-2">
+          Editar Discovery
+        </Button>
+      </div>
     )
   }
 
+  // in_progress or editing completed: show form
   return (
-    <div className="space-y-4">
-      <p className="text-muted-foreground text-sm">
-        Nenhuma análise de discovery foi criada ainda.
-      </p>
-      <Button
-        onClick={() => setIsFormOpen(true)}
-        className="w-full sm:w-auto"
-      >
-        Criar Discovery
-      </Button>
-    </div>
+    <DiscoveryForm
+      phase={phase}
+      taskId={taskId}
+      initialData={phase.discoveryData}
+      taskData={taskData}
+      onSaved={(completed) => {
+        if (completed) setIsEditing(false)
+        mutate()
+        onPhaseUpdate([])
+      }}
+    />
   )
 }

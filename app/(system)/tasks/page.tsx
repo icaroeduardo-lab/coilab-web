@@ -19,7 +19,12 @@ import {
   CalendarDays,
   User,
   Eye,
+  CalendarIcon,
 } from "lucide-react"
+import { format } from "date-fns"
+import { ptBR } from "date-fns/locale"
+import { Calendar } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ColumnDef } from "@tanstack/react-table"
 import useSWR, { useSWRConfig } from "swr"
 import {
@@ -402,6 +407,7 @@ export default function Page() {
   const phases = DEFAULT_PHASES
 
   const [activeTask, setActiveTask] = useState<Task | null>(null)
+  const [phaseDates, setPhaseDates] = useState<Record<string, Date | undefined>>({})
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -529,17 +535,33 @@ export default function Page() {
     setIsCreateDialogOpen(open)
     if (!open) {
       form.reset()
+      setPhaseDates({})
     }
   }
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
+    const missingDates = values.phases.filter((id) => !phaseDates[id])
+    if (missingDates.length > 0) {
+      form.setError("phases", {
+        message: "Todas as fases selecionadas precisam ter uma data de entrega.",
+      })
+      return
+    }
+
     try {
       const response = await fetch("/api/tasks", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(values),
+        body: JSON.stringify({
+          ...values,
+          phaseDueDates: Object.fromEntries(
+            Object.entries(phaseDates)
+              .filter(([, date]) => date !== undefined)
+              .map(([id, date]) => [id, (date as Date).toISOString()])
+          ),
+        }),
       })
 
       setIsCreateDialogOpen(false)
@@ -549,6 +571,7 @@ export default function Page() {
       }
 
       form.reset()
+      setPhaseDates({})
       setFeedback({ type: "success", message: "Tarefa criada com sucesso" })
       mutate("/api/tasks")
     } catch (error) {
@@ -744,22 +767,61 @@ export default function Page() {
                               {phases.length === 0 ? (
                                 <p className="text-sm text-muted-foreground">Nenhuma fase disponível</p>
                               ) : (
-                                phases.map((phase) => (
-                                  <label key={phase.id} className="flex items-center gap-3 text-sm cursor-pointer hover:bg-muted/50 p-2 rounded transition-colors">
-                                    <input
-                                      type="checkbox"
-                                      checked={field.value.includes(phase.id)}
-                                      onChange={(e) => {
-                                        const updated = e.target.checked
-                                          ? [...field.value, phase.id]
-                                          : field.value.filter((id: string) => id !== phase.id)
-                                        field.onChange(updated)
-                                      }}
-                                      className="rounded border-gray-300 cursor-pointer"
-                                    />
-                                    <span className="font-medium">{phase.name}</span>
-                                  </label>
-                                ))
+                                phases.map((phase) => {
+                                  const isChecked = field.value.includes(phase.id)
+                                  return (
+                                    <div key={phase.id} className="flex items-center gap-2 hover:bg-muted/50 p-2 rounded transition-colors">
+                                      <label className="flex items-center gap-3 text-sm cursor-pointer flex-1">
+                                        <input
+                                          type="checkbox"
+                                          checked={isChecked}
+                                          onChange={(e) => {
+                                            const updated = e.target.checked
+                                              ? [...field.value, phase.id]
+                                              : field.value.filter((id: string) => id !== phase.id)
+                                            field.onChange(updated)
+                                            if (!e.target.checked) {
+                                              setPhaseDates((prev) => {
+                                                const next = { ...prev }
+                                                delete next[phase.id]
+                                                return next
+                                              })
+                                            }
+                                          }}
+                                          className="rounded border-gray-300 cursor-pointer"
+                                        />
+                                        <span className="font-medium">{phase.name}</span>
+                                      </label>
+                                      <Popover>
+                                        <PopoverTrigger asChild>
+                                          <button
+                                            type="button"
+                                            disabled={!isChecked}
+                                            className="flex items-center gap-1.5 text-xs border rounded-md px-2 py-1 text-left transition-colors disabled:opacity-40 disabled:cursor-not-allowed enabled:hover:bg-muted"
+                                          >
+                                            <CalendarIcon className="h-3 w-3 text-muted-foreground shrink-0" />
+                                            <span className={phaseDates[phase.id] ? "text-foreground" : "text-muted-foreground"}>
+                                              {phaseDates[phase.id]
+                                                ? format(phaseDates[phase.id] as Date, "dd/MM/yyyy", { locale: ptBR })
+                                                : "dd/mm/aaaa"}
+                                            </span>
+                                          </button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-auto p-0" align="end">
+                                          <Calendar
+                                            mode="single"
+                                            selected={phaseDates[phase.id]}
+                                            onSelect={(date) =>
+                                              setPhaseDates((prev) => ({ ...prev, [phase.id]: date }))
+                                            }
+                                            locale={ptBR}
+                                            initialFocus
+                                          />
+                                        </PopoverContent>
+                                      </Popover>
+                                    </div>
+                                  )
+                                })
                               )}
                             </div>
                             <FormMessage />
@@ -815,7 +877,7 @@ export default function Page() {
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={() => setIsCreateDialogOpen(false)}
+                      onClick={() => handleDialogOpenChange(false)}
                       className="flex-1"
                       size="lg"
                     >
