@@ -37,36 +37,40 @@ export async function GET(request: Request) {
       );
     }
 
-    // Auto-correct kanban status based on phase states
+    // Auto-correct kanban status using latest-per-base-type rule
     const updates: { id: string; status: string }[] = [];
 
     tasks = tasks.map((task: any) => {
-      const enabled = (task.phases || []).filter((p: any) => p.enabled);
+      const enabled = ((task.phases || []) as any[]).filter((p: any) => p.enabled);
       if (enabled.length === 0) return task;
 
-      const hasActiveWork = enabled.some((p: any) =>
-        ["in_progress", "not_started"].includes(p.status)
-      );
-      const hasAnyStarted = enabled.some((p: any) =>
+      // Find latest version of each base type
+      const latestByBase = new Map<string, any>();
+      for (const phase of enabled) {
+        const base = (phase.id as string).split("_")[0];
+        const cur = latestByBase.get(base);
+        if (!cur || (phase.order ?? 0) > (cur.order ?? 0)) latestByBase.set(base, phase);
+      }
+      const latestPhases = [...latestByBase.values()];
+
+      const hasAnyStarted = latestPhases.some((p: any) =>
         ["in_progress", "completed", "approved", "rejected"].includes(p.status)
       );
-      const allCompletedOrApproved = enabled.every((p: any) =>
+      const allReadyForCheckout = latestPhases.every((p: any) =>
         ["completed", "approved"].includes(p.status)
       );
+      const hasBlocker = latestPhases.some((p: any) =>
+        ["rejected", "in_progress", "not_started"].includes(p.status)
+      );
 
-      let correctedStatus = task.status;
+      let corrected = task.status;
+      if (task.status === "Backlog" && hasAnyStarted) corrected = "Em Execução";
+      else if (task.status === "Em Execução" && allReadyForCheckout) corrected = "Checkout";
+      else if (task.status === "Checkout" && hasBlocker) corrected = "Em Execução";
 
-      if (task.status === "Backlog" && hasAnyStarted) {
-        correctedStatus = "Em Execução";
-      } else if (task.status === "Em Execução" && allCompletedOrApproved) {
-        correctedStatus = "Checkout";
-      } else if (task.status === "Checkout" && hasActiveWork) {
-        correctedStatus = "Em Execução";
-      }
-
-      if (correctedStatus !== task.status) {
-        updates.push({ id: task.id, status: correctedStatus });
-        return { ...task, status: correctedStatus };
+      if (corrected !== task.status) {
+        updates.push({ id: task.id, status: corrected });
+        return { ...task, status: corrected };
       }
       return task;
     });

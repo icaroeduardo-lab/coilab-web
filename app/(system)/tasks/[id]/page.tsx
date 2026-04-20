@@ -2,7 +2,7 @@
 
 import { useRouter, useParams } from "next/navigation"
 import { useState } from "react"
-import { ArrowLeft, AlertCircle, Loader2, User, Calendar, Plus, Trash2, Check, PlayCircle, CheckCircle2, RotateCcw, Clock, Save } from "lucide-react"
+import { ArrowLeft, AlertCircle, Loader2, User, Calendar, Plus, Trash2, Check, PlayCircle, CheckCircle2, RotateCcw, Clock, Save, Pencil } from "lucide-react"
 import useSWR, { useSWRConfig } from "swr"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -15,6 +15,11 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import DesignManager, { Design } from "@/components/design-manager"
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 type Phase = {
@@ -665,16 +670,91 @@ function DesignPhaseTab({
   )
 }
 
+type Option = { id: string; name: string }
+
 export default function TaskDetailPage() {
   const router = useRouter()
   const params = useParams()
   const id = params.id as string
   const [phases, setPhases] = useState<Phase[]>([])
+  const [isEditOpen, setIsEditOpen] = useState(false)
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [isSavingEdit, setIsSavingEdit] = useState(false)
+  const [phasesToDelete, setPhasesToDelete] = useState<Set<string>>(new Set())
+  const [editForm, setEditForm] = useState<{
+    name: string; description: string; project: string; applicant: string; priority: string
+  } | null>(null)
 
   const { data, isLoading, error, mutate } = useSWR<Task>(
     id ? `/api/tasks/${id}` : null,
     fetcher
   )
+  const { mutate: mutateGlobalTasks } = useSWRConfig()
+  const { data: applicantsData } = useSWR<Option[]>("/api/applicants", fetcher)
+  const { data: projectsData } = useSWR<Option[]>("/api/projects", fetcher)
+  const applicants = Array.isArray(applicantsData) ? applicantsData.map(a => ({ ...a, name: a.name.toUpperCase() })) : []
+  const projects = Array.isArray(projectsData) ? projectsData.map(p => ({ ...p, name: p.name.toUpperCase() })) : []
+
+  const openEdit = () => {
+    if (!data) return
+    setEditForm({
+      name: data.name,
+      description: data.description || "",
+      project: data.project,
+      applicant: data.applicant,
+      priority: data.priority,
+    })
+    setPhasesToDelete(new Set())
+    setIsEditOpen(true)
+  }
+
+  const handleSaveEdit = async () => {
+    if (!editForm) return
+    setIsSavingEdit(true)
+    try {
+      const promises: Promise<any>[] = [
+        fetch(`/api/tasks/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(editForm),
+        }),
+      ]
+      if (phasesToDelete.size > 0) {
+        const updatedPhases = (data?.phases || []).map(p =>
+          phasesToDelete.has(p.id) ? { ...p, enabled: false } : p
+        )
+        promises.push(
+          fetch(`/api/tasks/${id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ phases: updatedPhases }),
+          })
+        )
+      }
+      await Promise.all(promises)
+      await mutate()
+      mutateGlobalTasks("/api/tasks")
+      setPhasesToDelete(new Set())
+      setIsEditOpen(false)
+    } catch (e) {
+      console.error("Error saving edit:", e)
+    } finally {
+      setIsSavingEdit(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    setIsDeleting(true)
+    try {
+      await fetch(`/api/tasks/${id}`, { method: "DELETE" })
+      mutateGlobalTasks("/api/tasks")
+      router.push("/tasks")
+    } catch (e) {
+      console.error("Error deleting task:", e)
+      setIsDeleting(false)
+    }
+  }
 
   const enabledPhases = (data?.phases || []).filter(p => p.enabled).sort((a, b) => a.order - b.order)
 
@@ -727,14 +807,182 @@ export default function TaskDetailPage() {
             <ArrowLeft className="h-4 w-4 mr-2" />
             Voltar
           </Button>
-          <div>
-            {data.taskNumber && (
-              <span className="text-xs font-mono text-muted-foreground mb-1 block">#{data.taskNumber}</span>
-            )}
-            <h1 className="text-4xl font-bold tracking-tight">{data.name}</h1>
-            <div className="h-0.5 w-12 bg-primary rounded-full mt-2" />
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              {data.taskNumber && (
+                <span className="text-xs font-mono text-muted-foreground mb-1 block">#{data.taskNumber}</span>
+              )}
+              <h1 className="text-4xl font-bold tracking-tight">{data.name}</h1>
+              <div className="h-0.5 w-12 bg-primary rounded-full mt-2" />
+            </div>
+            <div className="flex items-center gap-1 mt-1 shrink-0">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                onClick={openEdit}
+                title="Editar tarefa"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                onClick={() => setIsDeleteOpen(true)}
+                title="Excluir tarefa"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </div>
           </div>
         </div>
+
+        {/* Edit Sheet */}
+        <Sheet open={isEditOpen} onOpenChange={setIsEditOpen}>
+          <SheetContent side="right" className="w-full sm:max-w-md flex flex-col overflow-y-auto">
+            <SheetHeader className="pb-4 border-b">
+              <SheetTitle>Editar Tarefa</SheetTitle>
+            </SheetHeader>
+            {editForm && (
+              <div className="flex flex-col gap-5 p-6 flex-1">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Nome</label>
+                  <Input
+                    value={editForm.name}
+                    onChange={e => setEditForm(f => f ? { ...f, name: e.target.value } : f)}
+                    placeholder="Nome da tarefa"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Descrição</label>
+                  <Textarea
+                    value={editForm.description}
+                    onChange={e => setEditForm(f => f ? { ...f, description: e.target.value } : f)}
+                    placeholder="Descrição da tarefa..."
+                    className="min-h-28 resize-none"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Projeto</label>
+                  <Select value={editForm.project} onValueChange={v => setEditForm(f => f ? { ...f, project: v } : f)}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {projects.map(p => <SelectItem key={p.id} value={p.name}>{p.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Solicitante</label>
+                  <Select value={editForm.applicant} onValueChange={v => setEditForm(f => f ? { ...f, applicant: v } : f)}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {applicants.map(a => <SelectItem key={a.id} value={a.name}>{a.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Prioridade</label>
+                  <div className="flex gap-4">
+                    {["Baixa", "Média", "Alta"].map(p => (
+                      <label key={p} className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="edit-priority"
+                          value={p}
+                          checked={editForm.priority === p}
+                          onChange={() => setEditForm(f => f ? { ...f, priority: p } : f)}
+                          className="cursor-pointer"
+                        />
+                        <span className="text-sm">{p}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                {/* Subtasks list */}
+                {enabledPhases.length > 0 && (
+                  <div className="space-y-1.5 pt-4 border-t">
+                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Subtarefas</label>
+                    <div className="divide-y border rounded-lg overflow-hidden">
+                      {enabledPhases.map(phase => {
+                        const markedForDelete = phasesToDelete.has(phase.id)
+                        return (
+                          <div key={phase.id} className={`flex items-center justify-between px-3 py-2.5 transition-colors ${markedForDelete ? "bg-destructive/5" : "bg-background hover:bg-muted/40"}`}>
+                            <div className="flex items-center gap-2.5">
+                              <div className={`h-1.5 w-1.5 rounded-full shrink-0 ${markedForDelete ? "bg-destructive/40" :
+                                phase.status === "approved" ? "bg-emerald-500" :
+                                phase.status === "rejected" ? "bg-red-500" :
+                                phase.status === "completed" ? "bg-sky-500" :
+                                phase.status === "in_progress" ? "bg-amber-500" : "bg-muted-foreground/30"
+                              }`} />
+                              <span className={`text-sm ${markedForDelete ? "line-through text-muted-foreground/50" : ""}`}>
+                                {phase.name}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setPhasesToDelete(prev => {
+                                const next = new Set(prev)
+                                if (next.has(phase.id)) next.delete(phase.id)
+                                else next.add(phase.id)
+                                return next
+                              })}
+                              className={`p-1 rounded transition-colors ${markedForDelete
+                                ? "text-destructive bg-destructive/10 hover:bg-destructive/20"
+                                : "text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10"
+                              }`}
+                              title={markedForDelete ? `Desfazer remoção de ${phase.name}` : `Remover ${phase.name}`}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        )
+                      })}
+                    </div>
+                    {phasesToDelete.size > 0 && (
+                      <p className="text-xs text-muted-foreground/70 pt-0.5">
+                        {phasesToDelete.size} subtarefa{phasesToDelete.size > 1 ? "s" : ""} será{phasesToDelete.size > 1 ? "o" : ""} removida{phasesToDelete.size > 1 ? "s" : ""} ao salvar.
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex gap-3 mt-auto pt-4 border-t">
+                  <Button onClick={handleSaveEdit} disabled={isSavingEdit} className="flex-1 gap-2">
+                    {isSavingEdit ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                    Salvar
+                  </Button>
+                  <Button variant="outline" onClick={() => setIsEditOpen(false)} disabled={isSavingEdit} className="flex-1">
+                    Cancelar
+                  </Button>
+                </div>
+              </div>
+            )}
+          </SheetContent>
+        </Sheet>
+
+        {/* Delete Confirmation */}
+        <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Excluir tarefa?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Esta ação não pode ser desfeita. A tarefa <strong>"{data.name}"</strong> e todos os seus dados serão removidos permanentemente.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDelete} disabled={isDeleting} className="gap-2">
+                {isDeleting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                Excluir
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* Tabs */}
         <Tabs defaultValue="visao-geral" className="space-y-4">

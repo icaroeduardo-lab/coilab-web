@@ -27,44 +27,6 @@ import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ColumnDef } from "@tanstack/react-table"
 import useSWR, { useSWRConfig } from "swr"
-import {
-  DndContext,
-  DragOverlay,
-  closestCorners,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  DragStartEvent,
-  DragOverEvent,
-  DragEndEvent,
-  type PointerActivationConstraint,
-} from "@dnd-kit/core"
-
-class SmartPointerSensor extends PointerSensor {
-  static activators = [
-    {
-      eventName: "onPointerDown" as const,
-      handler: ({ nativeEvent }: React.PointerEvent) => {
-        const target = nativeEvent.target as HTMLElement
-        if (!target) return true
-        const tag = target.tagName
-        if (["INPUT", "TEXTAREA", "SELECT", "BUTTON", "A"].includes(tag)) return false
-        if (target.isContentEditable) return false
-        if (target.closest('[role="dialog"]')) return false
-        return true
-      },
-    },
-  ]
-}
-import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
-  useSortable,
-} from "@dnd-kit/sortable"
-import { CSS } from "@dnd-kit/utilities"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -320,99 +282,69 @@ const columns: ColumnDef<Task>[] = [
   },
 ]
 
-function SortableTaskCard({ task }: { task: Task }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({
-    id: task.id,
-    data: {
-      type: "Task",
-      task,
-    },
-  })
-
-  const style = {
-    transform: CSS.Translate.toString(transform),
-    transition,
-  }
-
-  if (isDragging) {
-    return (
-      <div
-        ref={setNodeRef}
-        style={style}
-        className="h-30 min-h-30 items-center flex justify-center border-2 border-dashed border-primary/40 rounded-xl bg-primary/5"
-      />
-    )
-  }
-
+function TaskCard({ task }: { task: Task }) {
   const isRejected = task.hasRejection && task.status === "Em Execução"
   const rejectedPhases = isRejected
     ? (task.phases || []).filter(p => p.enabled && p.status === "rejected").map(p => p.name)
     : []
 
   return (
-    <Card
-      ref={setNodeRef}
-      style={style}
-      {...attributes}
-      {...listeners}
-      className={`cursor-grab active:cursor-grabbing group relative hover:shadow-sm transition-all duration-150 ${
-        isRejected
-          ? "border-red-300 dark:border-red-800 hover:border-red-400"
-          : "hover:border-primary/60"
-      }`}
-    >
-      {isRejected && (
-        <div className="absolute inset-x-0 top-0 h-0.5 rounded-t-xl bg-red-400 dark:bg-red-600" />
-      )}
-      <Link
-        href={`/tasks/${task.id}`}
-        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150 p-1.5 hover:bg-primary/10 rounded text-primary shrink-0"
-        onClick={(e) => e.stopPropagation()}
+    <Link href={`/tasks/${task.id}`}>
+      <Card
+        style={{
+          borderTopWidth: "2px",
+          borderTopStyle: "solid",
+          borderTopColor: isRejected ? "rgb(248 113 113)" : "rgb(203 213 225)",
+        }}
+        className="group transition-shadow duration-150 cursor-pointer hover:[box-shadow:0_-2px_8px_0_rgb(0_0_0/0.08),0_4px_8px_0_rgb(0_0_0/0.08)]"
       >
-        <Eye className="h-4 w-4" />
-      </Link>
-      <CardHeader className="p-4 pb-2">
-        {task.taskNumber && (
-          <span className="text-[10px] font-mono text-muted-foreground/70 mb-0.5">#{task.taskNumber}</span>
-        )}
-        <CardTitle className="text-sm font-bold">{task.name}</CardTitle>
-        <CardDescription className="text-xs">{task.project}</CardDescription>
-      </CardHeader>
-      <CardContent className="p-4 pt-0 text-xs">
-        <div className="flex flex-col gap-1">
-          {isRejected && (
-            <div className="flex items-center gap-1.5 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 rounded px-2 py-1 mb-1">
-              <CircleX className="h-3 w-3 shrink-0" />
-              <span className="text-[11px]">
-                Reprovado: {rejectedPhases.join(", ")}
-              </span>
-            </div>
+        <CardHeader className="p-4 pb-2">
+          {task.taskNumber && (
+            <span className="text-[10px] font-mono text-muted-foreground/70 mb-0.5">#{task.taskNumber}</span>
           )}
-          <p className="line-clamp-3 text-muted-foreground mb-2">
-            {task.description}
-          </p>
-          <div className="flex flex-wrap gap-1 mb-2">
-            <PriorityBadge priority={task.priority} />
-            <Badge variant="outline" className="gap-1">
-              <User />
-              {task.applicant}
-            </Badge>
+          <CardTitle className="text-sm font-bold">{task.name}</CardTitle>
+          <CardDescription className="text-xs">{task.project}</CardDescription>
+        </CardHeader>
+        <CardContent className="p-4 pt-0 text-xs">
+          <div className="flex flex-col gap-1">
+            {isRejected && (
+              <div className="flex items-center gap-1.5 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 rounded px-2 py-1 mb-1">
+                <CircleX className="h-3 w-3 shrink-0" />
+                <span className="text-[11px]">Reprovado: {rejectedPhases.join(", ")}</span>
+              </div>
+            )}
+            <p className="line-clamp-3 text-muted-foreground mb-2">{task.description}</p>
+            <div className="flex flex-wrap gap-1 mb-2">
+              <PriorityBadge priority={task.priority} />
+              <Badge variant="outline" className="gap-1">
+                <User />
+                {task.applicant}
+              </Badge>
+            </div>
+            <div className="flex items-center justify-between text-[10px] text-muted-foreground border-t pt-2">
+              <span>Criado em:</span>
+              <span>{new Date(task.createdAt).toLocaleDateString("pt-BR")}</span>
+            </div>
           </div>
-          <div className="flex items-center justify-between text-[10px] text-muted-foreground border-t pt-2">
-            <span>Criado em:</span>
-            <span>{new Date(task.createdAt).toLocaleDateString("pt-BR")}</span>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </Link>
   )
+}
+
+function priorityRank(priority: string): number {
+  const p = priority.toLowerCase()
+  if (p === "alta" || p === "high" || p === "urgente" || p === "crítica") return 0
+  if (p === "média" || p === "media" || p === "normal" || p === "medium") return 1
+  return 2
+}
+
+function sortTasks(tasks: Task[]): Task[] {
+  return [...tasks].sort((a, b) => {
+    const rankDiff = priorityRank(a.priority) - priorityRank(b.priority)
+    if (rankDiff !== 0) return rankDiff
+    return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  })
 }
 
 function KanbanColumn({
@@ -422,14 +354,6 @@ function KanbanColumn({
   column: KanbanColumnConfig
   tasks: Task[]
 }) {
-  const { setNodeRef } = useSortable({
-    id: column.id,
-    data: {
-      type: "Column",
-      status: column,
-    },
-  })
-
   return (
     <div className={`flex flex-col gap-4 bg-muted/50 p-4 rounded-xl min-w-72 w-full border-t-2 ${column.accent}`}>
       <div className="flex items-center justify-between px-1">
@@ -446,15 +370,10 @@ function KanbanColumn({
         </span>
       </div>
       <p className="text-[11px] text-muted-foreground/70 px-1 -mt-2">{column.description}</p>
-      <div ref={setNodeRef} className="flex flex-col gap-3 min-h-50">
-        <SortableContext
-          items={tasks.map((t) => t.id)}
-          strategy={verticalListSortingStrategy}
-        >
-          {tasks.map((task) => (
-            <SortableTaskCard key={task.id} task={task} />
-          ))}
-        </SortableContext>
+      <div className="flex flex-col gap-3 min-h-50">
+        {tasks.map((task) => (
+          <TaskCard key={task.id} task={task} />
+        ))}
       </div>
     </div>
   )
@@ -487,19 +406,7 @@ export default function Page() {
   ]
   const phases = DEFAULT_PHASES
 
-  const [activeTask, setActiveTask] = useState<Task | null>(null)
   const [phaseDates, setPhaseDates] = useState<Record<string, Date | undefined>>({})
-
-  const sensors = useSensors(
-    useSensor(SmartPointerSensor, {
-      activationConstraint: {
-        distance: 5,
-      },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  )
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -513,104 +420,6 @@ export default function Page() {
       flows: [],
     },
   })
-
-  async function updateTaskStatus(taskId: string, newStatus: string) {
-    try {
-      const response = await fetch(`/api/tasks/${taskId}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ status: newStatus }),
-      })
-
-      if (!response.ok) {
-        throw new Error("Falha ao atualizar status")
-      }
-
-      // Revalidate tasks
-      mutate("/api/tasks")
-    } catch (error) {
-      console.error("Erro ao atualizar status:", error)
-      mutate("/api/tasks") // Sync on error
-    }
-  }
-
-  function onDragStart(event: DragStartEvent) {
-    if (event.active.data.current?.type === "Task") {
-      setActiveTask(event.active.data.current.task)
-    }
-  }
-
-  function onDragOver(event: DragOverEvent) {
-    const { active, over } = event
-    if (!over) return
-
-    const activeId = active.id
-    const overId = over.id
-
-    if (activeId === overId) return
-
-    const isActiveATask = active.data.current?.type === "Task"
-    const isOverATask = over.data.current?.type === "Task"
-    const isOverAColumn = over.data.current?.type === "Column"
-
-    if (!isActiveATask) return
-
-    // Visual reordering in local cache for smoother experience
-    if (isActiveATask && (isOverATask || isOverAColumn)) {
-        mutate("/api/tasks", (currentTasks: Task[] | undefined) => {
-            if (!currentTasks) return []
-            const activeIndex = currentTasks.findIndex((t) => t.id === activeId)
-            
-            if (activeIndex === -1) return currentTasks
-
-            const targetStatus = isOverAColumn 
-                ? over.data.current?.status.name 
-                : over.data.current?.task.status
-
-            const updatedTasks = [...currentTasks]
-            const taskToUpdate = updatedTasks[activeIndex]
-
-            if (taskToUpdate && taskToUpdate.status !== targetStatus) {
-                updatedTasks[activeIndex] = { ...taskToUpdate, status: targetStatus }
-            }
-
-            if (isOverATask) {
-                const overIndex = updatedTasks.findIndex((t) => t.id === overId)
-                return arrayMove(updatedTasks, activeIndex, overIndex)
-            }
-            
-            return updatedTasks
-        }, false)
-    }
-  }
-
-  function onDragEnd(event: DragEndEvent) {
-    const { active, over } = event
-    const currentActiveTask = activeTask || active.data.current?.task
-
-    if (!over || !currentActiveTask) {
-      setActiveTask(null)
-      return
-    }
-
-    const taskId = active.id.toString()
-    const overData = over.data.current
-    let newStatus = ""
-
-    if (overData?.type === "Column") {
-      newStatus = overData.status.name
-    } else if (overData?.type === "Task") {
-      newStatus = overData.task.status
-    }
-
-    if (newStatus && currentActiveTask.status.toLowerCase() !== newStatus.toLowerCase()) {
-      updateTaskStatus(taskId, newStatus)
-    }
-
-    setActiveTask(null)
-  }
 
   function handleDialogOpenChange(open: boolean) {
     setIsCreateDialogOpen(open)
@@ -979,28 +788,17 @@ export default function Page() {
         </TabsList>
         <TabsContent value="kanban" className="pt-4">
           <div className="flex gap-4 overflow-x-auto pb-4">
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCorners}
-              onDragStart={onDragStart}
-              onDragOver={onDragOver}
-              onDragEnd={onDragEnd}
-            >
-              <div className="flex gap-4 min-w-full">
-                {KANBAN_COLUMNS.map((column) => (
-                  <KanbanColumn
-                    key={column.id}
-                    column={column}
-                    tasks={tasks.filter(
-                      (t) => t.status.toLowerCase() === column.id.toLowerCase()
-                    )}
-                  />
-                ))}
-              </div>
-              <DragOverlay>
-                {activeTask ? <SortableTaskCard task={activeTask} /> : null}
-              </DragOverlay>
-            </DndContext>
+            <div className="flex gap-4 min-w-full">
+              {KANBAN_COLUMNS.map((column) => (
+                <KanbanColumn
+                  key={column.id}
+                  column={column}
+                  tasks={sortTasks(tasks.filter(
+                    (t) => t.status.toLowerCase() === column.id.toLowerCase()
+                  ))}
+                />
+              ))}
+            </div>
           </div>
         </TabsContent>
         <TabsContent value="list" className="pt-4">
