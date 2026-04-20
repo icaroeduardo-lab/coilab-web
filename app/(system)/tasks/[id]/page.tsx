@@ -681,6 +681,7 @@ export default function TaskDetailPage() {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isSavingEdit, setIsSavingEdit] = useState(false)
+  const [phasesToDelete, setPhasesToDelete] = useState<Set<string>>(new Set())
   const [editForm, setEditForm] = useState<{
     name: string; description: string; project: string; applicant: string; priority: string
   } | null>(null)
@@ -704,6 +705,7 @@ export default function TaskDetailPage() {
       applicant: data.applicant,
       priority: data.priority,
     })
+    setPhasesToDelete(new Set())
     setIsEditOpen(true)
   }
 
@@ -711,13 +713,29 @@ export default function TaskDetailPage() {
     if (!editForm) return
     setIsSavingEdit(true)
     try {
-      await fetch(`/api/tasks/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(editForm),
-      })
+      const promises: Promise<any>[] = [
+        fetch(`/api/tasks/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(editForm),
+        }),
+      ]
+      if (phasesToDelete.size > 0) {
+        const updatedPhases = (data?.phases || []).map(p =>
+          phasesToDelete.has(p.id) ? { ...p, enabled: false } : p
+        )
+        promises.push(
+          fetch(`/api/tasks/${id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ phases: updatedPhases }),
+          })
+        )
+      }
+      await Promise.all(promises)
       await mutate()
       mutateGlobalTasks("/api/tasks")
+      setPhasesToDelete(new Set())
       setIsEditOpen(false)
     } catch (e) {
       console.error("Error saving edit:", e)
@@ -890,45 +908,46 @@ export default function TaskDetailPage() {
                   <div className="space-y-1.5 pt-4 border-t">
                     <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Subtarefas</label>
                     <div className="divide-y border rounded-lg overflow-hidden">
-                      {enabledPhases.map(phase => (
-                        <div key={phase.id} className="flex items-center justify-between px-3 py-2.5 bg-background hover:bg-muted/40 transition-colors">
-                          <div className="flex items-center gap-2.5">
-                            <div className={`h-1.5 w-1.5 rounded-full shrink-0 ${
-                              phase.status === "approved" ? "bg-emerald-500" :
-                              phase.status === "rejected" ? "bg-red-500" :
-                              phase.status === "completed" ? "bg-sky-500" :
-                              phase.status === "in_progress" ? "bg-amber-500" : "bg-muted-foreground/30"
-                            }`} />
-                            <span className="text-sm">{phase.name}</span>
+                      {enabledPhases.map(phase => {
+                        const markedForDelete = phasesToDelete.has(phase.id)
+                        return (
+                          <div key={phase.id} className={`flex items-center justify-between px-3 py-2.5 transition-colors ${markedForDelete ? "bg-destructive/5" : "bg-background hover:bg-muted/40"}`}>
+                            <div className="flex items-center gap-2.5">
+                              <div className={`h-1.5 w-1.5 rounded-full shrink-0 ${markedForDelete ? "bg-destructive/40" :
+                                phase.status === "approved" ? "bg-emerald-500" :
+                                phase.status === "rejected" ? "bg-red-500" :
+                                phase.status === "completed" ? "bg-sky-500" :
+                                phase.status === "in_progress" ? "bg-amber-500" : "bg-muted-foreground/30"
+                              }`} />
+                              <span className={`text-sm ${markedForDelete ? "line-through text-muted-foreground/50" : ""}`}>
+                                {phase.name}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setPhasesToDelete(prev => {
+                                const next = new Set(prev)
+                                if (next.has(phase.id)) next.delete(phase.id)
+                                else next.add(phase.id)
+                                return next
+                              })}
+                              className={`p-1 rounded transition-colors ${markedForDelete
+                                ? "text-destructive bg-destructive/10 hover:bg-destructive/20"
+                                : "text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10"
+                              }`}
+                              title={markedForDelete ? `Desfazer remoção de ${phase.name}` : `Remover ${phase.name}`}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
                           </div>
-                          <button
-                            type="button"
-                            disabled={isSavingEdit}
-                            onClick={async () => {
-                              const updated = (data?.phases || []).map(p =>
-                                p.id === phase.id ? { ...p, enabled: false } : p
-                              )
-                              setIsSavingEdit(true)
-                              try {
-                                await fetch(`/api/tasks/${id}`, {
-                                  method: "PATCH",
-                                  headers: { "Content-Type": "application/json" },
-                                  body: JSON.stringify({ phases: updated }),
-                                })
-                                await mutate()
-                                mutateGlobalTasks("/api/tasks")
-                              } finally {
-                                setIsSavingEdit(false)
-                              }
-                            }}
-                            className="p-1 rounded text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-40"
-                            title={`Remover ${phase.name}`}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      ))}
+                        )
+                      })}
                     </div>
+                    {phasesToDelete.size > 0 && (
+                      <p className="text-xs text-muted-foreground/70 pt-0.5">
+                        {phasesToDelete.size} subtarefa{phasesToDelete.size > 1 ? "s" : ""} será{phasesToDelete.size > 1 ? "o" : ""} removida{phasesToDelete.size > 1 ? "s" : ""} ao salvar.
+                      </p>
+                    )}
                   </div>
                 )}
 
