@@ -21,7 +21,7 @@ type Phase = {
   name: string
   order: number
   enabled: boolean
-  status: "not_started" | "in_progress" | "completed"
+  status: "not_started" | "in_progress" | "completed" | "approved" | "rejected"
   dueDate?: string
   startedAt?: string
   completedAt?: string
@@ -733,6 +733,15 @@ export function DiscoveryPhaseTab({
           {isStarting ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
           Iniciar
         </Button>
+      </div>
+    )
+  }
+
+  // Approved or rejected: locked read-only, no editing
+  if ((phase.status === "approved" || phase.status === "rejected") && phase.discoveryData) {
+    return (
+      <div className="space-y-6">
+        <DiscoveryDisplay data={phase.discoveryData} />
       </div>
     )
   }

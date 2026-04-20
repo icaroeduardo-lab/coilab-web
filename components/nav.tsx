@@ -63,7 +63,12 @@ export function Nav() {
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button className="rounded-full outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+          <button className="flex items-center gap-2 rounded-full outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+            {session?.user?.name && (
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide hidden sm:block">
+                {session.user.name.toUpperCase()}
+              </span>
+            )}
             <Avatar className="h-8 w-8 cursor-pointer">
               <AvatarImage src={session?.user?.image ?? ""} alt={session?.user?.name ?? ""} />
               <AvatarFallback className="text-xs bg-primary/10 text-primary">

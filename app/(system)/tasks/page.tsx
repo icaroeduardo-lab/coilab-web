@@ -38,7 +38,25 @@ import {
   DragStartEvent,
   DragOverEvent,
   DragEndEvent,
+  type PointerActivationConstraint,
 } from "@dnd-kit/core"
+
+class SmartPointerSensor extends PointerSensor {
+  static activators = [
+    {
+      eventName: "onPointerDown" as const,
+      handler: ({ nativeEvent }: React.PointerEvent) => {
+        const target = nativeEvent.target as HTMLElement
+        if (!target) return true
+        const tag = target.tagName
+        if (["INPUT", "TEXTAREA", "SELECT", "BUTTON", "A"].includes(tag)) return false
+        if (target.isContentEditable) return false
+        if (target.closest('[role="dialog"]')) return false
+        return true
+      },
+    },
+  ]
+}
 import {
   arrayMove,
   SortableContext,
@@ -136,6 +154,8 @@ type Task = {
   status: string
   createdAt: string
   description?: string
+  hasRejection?: boolean
+  phases?: { id: string; status: string; enabled: boolean; name: string }[]
 }
 
 type Option = {
@@ -169,9 +189,26 @@ function PriorityBadge({ priority }: { priority: string }) {
   )
 }
 
+const KANBAN_COLUMNS: KanbanColumnConfig[] = [
+  { id: "Backlog",         name: "Backlog",         accent: "border-t-muted-foreground/40", description: "Aguardando início" },
+  { id: "Em Execução",      name: "Em Execução",      accent: "border-t-sky-400",             description: "Discovery e Design em andamento" },
+  { id: "Checkout",        name: "Checkout",        accent: "border-t-amber-400",           description: "Aprovado, aguardando desenvolvimento" },
+  { id: "Desenvolvimento", name: "Desenvolvimento", accent: "border-t-orange-400",          description: "Com equipe de desenvolvimento", externalTeam: true },
+  { id: "Testes",          name: "Testes",          accent: "border-t-blue-400",            description: "Validação e QA" },
+  { id: "Concluído",       name: "Concluído",       accent: "border-t-emerald-400",         description: "Finalizado" },
+]
+
+type KanbanColumnConfig = {
+  id: string
+  name: string
+  accent: string
+  description: string
+  externalTeam?: boolean
+}
+
 function StatusBadge({ status }: { status: string }) {
   const s = status.toLowerCase()
-  if (s.includes("conclu") || s.includes("done") || s.includes("feito") || s.includes("finaliz")) {
+  if (s === "concluído" || s === "concluido") {
     return (
       <Badge className="gap-1 bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800">
         <CircleCheck />
@@ -179,7 +216,23 @@ function StatusBadge({ status }: { status: string }) {
       </Badge>
     )
   }
-  if (s.includes("andamento") || s.includes("progress") || s.includes("fazendo") || s.includes("execu")) {
+  if (s === "desenvolvimento") {
+    return (
+      <Badge className="gap-1 bg-orange-100 text-orange-700 border border-orange-200 dark:bg-orange-950/30 dark:text-orange-400 dark:border-orange-800">
+        <CircleDot />
+        {status}
+      </Badge>
+    )
+  }
+  if (s === "testes") {
+    return (
+      <Badge className="gap-1 bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-800">
+        <CircleDot />
+        {status}
+      </Badge>
+    )
+  }
+  if (s === "em análise" || s === "em analise") {
     return (
       <Badge className="gap-1 bg-sky-100 text-sky-700 border border-sky-200 dark:bg-sky-950/30 dark:text-sky-400 dark:border-sky-800">
         <CircleDot />
@@ -187,10 +240,10 @@ function StatusBadge({ status }: { status: string }) {
       </Badge>
     )
   }
-  if (s.includes("bloqueado") || s.includes("blocked") || s.includes("impedido")) {
+  if (s === "checkout") {
     return (
-      <Badge variant="destructive" className="gap-1">
-        <CircleX />
+      <Badge className="gap-1 bg-amber-100 text-amber-700 border border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800">
+        <Clock />
         {status}
       </Badge>
     )
@@ -298,14 +351,26 @@ function SortableTaskCard({ task }: { task: Task }) {
     )
   }
 
+  const isRejected = task.hasRejection && task.status === "Em Execução"
+  const rejectedPhases = isRejected
+    ? (task.phases || []).filter(p => p.enabled && p.status === "rejected").map(p => p.name)
+    : []
+
   return (
     <Card
       ref={setNodeRef}
       style={style}
       {...attributes}
       {...listeners}
-      className="cursor-grab active:cursor-grabbing group relative hover:border-primary/60 hover:shadow-sm transition-all duration-150"
+      className={`cursor-grab active:cursor-grabbing group relative hover:shadow-sm transition-all duration-150 ${
+        isRejected
+          ? "border-red-300 dark:border-red-800 hover:border-red-400"
+          : "hover:border-primary/60"
+      }`}
     >
+      {isRejected && (
+        <div className="absolute inset-x-0 top-0 h-0.5 rounded-t-xl bg-red-400 dark:bg-red-600" />
+      )}
       <Link
         href={`/tasks/${task.id}`}
         className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150 p-1.5 hover:bg-primary/10 rounded text-primary shrink-0"
@@ -322,6 +387,14 @@ function SortableTaskCard({ task }: { task: Task }) {
       </CardHeader>
       <CardContent className="p-4 pt-0 text-xs">
         <div className="flex flex-col gap-1">
+          {isRejected && (
+            <div className="flex items-center gap-1.5 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 rounded px-2 py-1 mb-1">
+              <CircleX className="h-3 w-3 shrink-0" />
+              <span className="text-[11px]">
+                Reprovado: {rejectedPhases.join(", ")}
+              </span>
+            </div>
+          )}
           <p className="line-clamp-3 text-muted-foreground mb-2">
             {task.description}
           </p>
@@ -343,28 +416,36 @@ function SortableTaskCard({ task }: { task: Task }) {
 }
 
 function KanbanColumn({
-  status,
+  column,
   tasks,
 }: {
-  status: Option
+  column: KanbanColumnConfig
   tasks: Task[]
 }) {
   const { setNodeRef } = useSortable({
-    id: status.id,
+    id: column.id,
     data: {
       type: "Column",
-      status,
+      status: column,
     },
   })
 
   return (
-    <div className="flex flex-col gap-4 bg-muted/50 p-4 rounded-xl min-w-75 w-full border-t-2 border-t-primary/30">
-      <div className="flex items-center justify-between px-2">
-        <h3 className="font-semibold text-sm">{status.name}</h3>
+    <div className={`flex flex-col gap-4 bg-muted/50 p-4 rounded-xl min-w-72 w-full border-t-2 ${column.accent}`}>
+      <div className="flex items-center justify-between px-1">
+        <div className="flex items-center gap-2">
+          <h3 className="font-semibold text-sm">{column.name}</h3>
+          {column.externalTeam && (
+            <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 text-muted-foreground border-dashed">
+              Equipe Dev
+            </Badge>
+          )}
+        </div>
         <span className="bg-primary/10 text-primary px-2 py-0.5 rounded-full text-xs font-medium">
           {tasks.length}
         </span>
       </div>
+      <p className="text-[11px] text-muted-foreground/70 px-1 -mt-2">{column.description}</p>
       <div ref={setNodeRef} className="flex flex-col gap-3 min-h-50">
         <SortableContext
           items={tasks.map((t) => t.id)}
@@ -388,13 +469,13 @@ export default function Page() {
   } | null>(null)
   
   const { data: tasksData, isLoading: tasksLoading } = useSWR<Task[]>("/api/tasks", fetcher)
-  const { data: statusesData } = useSWR<Option[]>("/api/status", fetcher)
+
   const { data: applicantsData } = useSWR<Option[]>("/api/applicants", fetcher)
   const { data: projectsData } = useSWR<Option[]>("/api/projects", fetcher)
   const { data: flowsData } = useSWR<Option[]>("/api/flows", fetcher)
 
   const tasks = Array.isArray(tasksData) ? tasksData : []
-  const statuses = Array.isArray(statusesData) ? statusesData : []
+
   const applicants = Array.isArray(applicantsData) ? applicantsData.map(a => ({ ...a, name: a.name.toUpperCase() })) : []
   const projects = Array.isArray(projectsData) ? projectsData.map(p => ({ ...p, name: p.name.toUpperCase() })) : []
   const flows = Array.isArray(flowsData) ? flowsData.map(f => ({ ...f, name: f.name.toUpperCase() })) : []
@@ -410,7 +491,7 @@ export default function Page() {
   const [phaseDates, setPhaseDates] = useState<Record<string, Date | undefined>>({})
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
+    useSensor(SmartPointerSensor, {
       activationConstraint: {
         distance: 5,
       },
@@ -906,12 +987,12 @@ export default function Page() {
               onDragEnd={onDragEnd}
             >
               <div className="flex gap-4 min-w-full">
-                {statuses.map((status) => (
+                {KANBAN_COLUMNS.map((column) => (
                   <KanbanColumn
-                    key={status.id}
-                    status={status}
+                    key={column.id}
+                    column={column}
                     tasks={tasks.filter(
-                      (t) => t.status.toLowerCase() === status.name.toLowerCase()
+                      (t) => t.status.toLowerCase() === column.id.toLowerCase()
                     )}
                   />
                 ))}

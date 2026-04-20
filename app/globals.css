@@ -126,7 +126,13 @@
     @apply bg-background text-foreground;
   }
   ::selection {
-    background-color: oklch(var(--primary) / 0.2);
+    background-color: #0ea5e9;
+    color: #ffffff;
+  }
+  input::selection,
+  textarea::selection {
+    background-color: #0ea5e9;
+    color: #ffffff;
   }
   ::-webkit-scrollbar {
     width: 6px;
