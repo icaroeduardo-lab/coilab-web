@@ -294,9 +294,9 @@ function TaskCard({ task }: { task: Task }) {
         style={{
           borderTopWidth: "2px",
           borderTopStyle: "solid",
-          borderTopColor: isRejected ? "rgb(248 113 113)" : "transparent",
+          borderTopColor: isRejected ? "rgb(248 113 113)" : "rgb(203 213 225)",
         }}
-        className="group hover:shadow-sm hover:border-primary/60 transition-all duration-150 cursor-pointer"
+        className="group transition-shadow duration-150 cursor-pointer hover:[box-shadow:0_-2px_8px_0_rgb(0_0_0/0.08),0_4px_8px_0_rgb(0_0_0/0.08)]"
       >
         <CardHeader className="p-4 pb-2">
           {task.taskNumber && (
@@ -330,6 +330,21 @@ function TaskCard({ task }: { task: Task }) {
       </Card>
     </Link>
   )
+}
+
+function priorityRank(priority: string): number {
+  const p = priority.toLowerCase()
+  if (p === "alta" || p === "high" || p === "urgente" || p === "crítica") return 0
+  if (p === "média" || p === "media" || p === "normal" || p === "medium") return 1
+  return 2
+}
+
+function sortTasks(tasks: Task[]): Task[] {
+  return [...tasks].sort((a, b) => {
+    const rankDiff = priorityRank(a.priority) - priorityRank(b.priority)
+    if (rankDiff !== 0) return rankDiff
+    return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  })
 }
 
 function KanbanColumn({
@@ -778,9 +793,9 @@ export default function Page() {
                 <KanbanColumn
                   key={column.id}
                   column={column}
-                  tasks={tasks.filter(
+                  tasks={sortTasks(tasks.filter(
                     (t) => t.status.toLowerCase() === column.id.toLowerCase()
-                  )}
+                  ))}
                 />
               ))}
             </div>
