@@ -41,7 +41,7 @@ export default function DesignManager({
   const [showDialog, setShowDialog] = useState(false)
   const [showSuccessDialog, setShowSuccessDialog] = useState(false)
   const [successMessage, setSuccessMessage] = useState("")
-  const [importType, setImportType] = useState<"upload" | "figma">("figma")
+  const [importType, setImportType] = useState<"upload" | "figma">("upload")
 
   // Upload state
   const [uploadFile, setUploadFile] = useState<File | null>(null)
@@ -328,20 +328,6 @@ export default function DesignManager({
                   <div className="flex items-center space-x-2">
                     <input
                       type="radio"
-                      id="figma"
-                      name="importType"
-                      value="figma"
-                      checked={importType === "figma"}
-                      onChange={() => setImportType("figma")}
-                      className="cursor-pointer"
-                    />
-                    <Label htmlFor="figma" className="cursor-pointer text-base">
-                      Importar do Figma
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <input
-                      type="radio"
                       id="upload"
                       name="importType"
                       value="upload"
@@ -351,6 +337,20 @@ export default function DesignManager({
                     />
                     <Label htmlFor="upload" className="cursor-pointer text-base">
                       Upload Normal
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="radio"
+                      id="figma"
+                      name="importType"
+                      value="figma"
+                      checked={importType === "figma"}
+                      onChange={() => setImportType("figma")}
+                      className="cursor-pointer"
+                    />
+                    <Label htmlFor="figma" className="cursor-pointer text-base">
+                      Importar do Figma
                     </Label>
                   </div>
                 </div>
