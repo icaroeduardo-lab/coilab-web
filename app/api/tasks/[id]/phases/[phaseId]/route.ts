@@ -11,25 +11,39 @@ const client = new DynamoDBClient({
 });
 const docClient = DynamoDBDocumentClient.from(client);
 
-function deriveTaskStatus(phases: any[], currentTaskStatus: string, updatedPhaseId: string): string | null {
+/**
+ * For each base type (discovery, design, …) find the phase with the
+ * highest order — that is the "latest" version of that subtask.
+ * Rules:
+ *  → Checkout : every latest-per-type is "completed" or "approved"
+ *  → Em Execução (from Checkout): any latest-per-type is "rejected" / "in_progress" / "not_started"
+ */
+function deriveTaskStatus(phases: any[], currentTaskStatus: string): string | null {
   const enabled = phases.filter((p: any) => p.enabled);
   if (enabled.length === 0) return null;
 
-  const allFinalized = enabled.every((p: any) =>
-    ["completed", "approved", "rejected"].includes(p.status)
-  );
-  const allCompletedOrApproved = enabled.every((p: any) =>
+  // Build a map: baseType → phase with highest order
+  const latestByBase = new Map<string, any>();
+  for (const phase of enabled) {
+    const base = (phase.id as string).split("_")[0];
+    const current = latestByBase.get(base);
+    if (!current || (phase.order ?? 0) > (current.order ?? 0)) {
+      latestByBase.set(base, phase);
+    }
+  }
+
+  const latestPhases = [...latestByBase.values()];
+
+  const allReadyForCheckout = latestPhases.every((p: any) =>
     ["completed", "approved"].includes(p.status)
   );
-  const anyInProgress = enabled.some((p: any) =>
-    ["in_progress", "not_started"].includes(p.status)
+
+  const hasBlocker = latestPhases.some((p: any) =>
+    ["rejected", "in_progress", "not_started"].includes(p.status)
   );
 
-  // All phases finalized (no in_progress/not_started) AND at least one awaiting approval → Checkout
-  if (allCompletedOrApproved && currentTaskStatus === "Em Execução") return "Checkout";
-
-  // Has work still to do → stay/return to Em Execução
-  if (anyInProgress && currentTaskStatus === "Checkout") return "Em Execução";
+  if (allReadyForCheckout && currentTaskStatus === "Em Execução") return "Checkout";
+  if (hasBlocker && currentTaskStatus === "Checkout") return "Em Execução";
 
   return null;
 }
@@ -59,16 +73,11 @@ export async function PATCH(
       new GetCommand({ TableName: tableName, Key: { id } })
     );
 
-    if (!Item) {
-      return NextResponse.json({ error: "Task not found" }, { status: 404 });
-    }
+    if (!Item) return NextResponse.json({ error: "Task not found" }, { status: 404 });
 
     const phases: any[] = Item.phases || [];
     const phaseIndex = phases.findIndex((p: any) => p.id === phaseId);
-
-    if (phaseIndex === -1) {
-      return NextResponse.json({ error: "Phase not found" }, { status: 404 });
-    }
+    if (phaseIndex === -1) return NextResponse.json({ error: "Phase not found" }, { status: 404 });
 
     const now = new Date().toISOString();
     const phase = { ...phases[phaseIndex] };
@@ -90,13 +99,12 @@ export async function PATCH(
 
     phases[phaseIndex] = phase;
 
-    // Derive new task status based on phase changes
     let newTaskStatus: string | null = null;
 
     if (action === "start" && (Item.status === "Backlog" || !Item.status)) {
       newTaskStatus = "Em Execução";
     } else if (action === "complete" || action === "reopen") {
-      newTaskStatus = deriveTaskStatus(phases, Item.status, phaseId);
+      newTaskStatus = deriveTaskStatus(phases, Item.status);
     }
 
     const updateExpression = newTaskStatus
