@@ -11,6 +11,29 @@ const client = new DynamoDBClient({
 });
 const docClient = DynamoDBDocumentClient.from(client);
 
+function deriveTaskStatus(phases: any[], currentTaskStatus: string, updatedPhaseId: string): string | null {
+  const enabled = phases.filter((p: any) => p.enabled);
+  if (enabled.length === 0) return null;
+
+  const allFinalized = enabled.every((p: any) =>
+    ["completed", "approved", "rejected"].includes(p.status)
+  );
+  const allCompletedOrApproved = enabled.every((p: any) =>
+    ["completed", "approved"].includes(p.status)
+  );
+  const anyInProgress = enabled.some((p: any) =>
+    ["in_progress", "not_started"].includes(p.status)
+  );
+
+  // All phases finalized (no in_progress/not_started) AND at least one awaiting approval → Checkout
+  if (allCompletedOrApproved && currentTaskStatus === "Em Execução") return "Checkout";
+
+  // Has work still to do → stay/return to Em Execução
+  if (anyInProgress && currentTaskStatus === "Checkout") return "Em Execução";
+
+  return null;
+}
+
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string; phaseId: string }> }
@@ -67,16 +90,36 @@ export async function PATCH(
 
     phases[phaseIndex] = phase;
 
+    // Derive new task status based on phase changes
+    let newTaskStatus: string | null = null;
+
+    if (action === "start" && (Item.status === "Backlog" || !Item.status)) {
+      newTaskStatus = "Em Execução";
+    } else if (action === "complete" || action === "reopen") {
+      newTaskStatus = deriveTaskStatus(phases, Item.status, phaseId);
+    }
+
+    const updateExpression = newTaskStatus
+      ? "set phases = :p, #s = :s"
+      : "set phases = :p";
+    const expressionAttributeValues: Record<string, any> = { ":p": phases };
+    const expressionAttributeNames: Record<string, string> | undefined = newTaskStatus
+      ? { "#s": "status" }
+      : undefined;
+    if (newTaskStatus) expressionAttributeValues[":s"] = newTaskStatus;
+
     await docClient.send(
       new UpdateCommand({
         TableName: tableName,
         Key: { id },
-        UpdateExpression: "set phases = :p",
-        ExpressionAttributeValues: { ":p": phases },
+        UpdateExpression: updateExpression,
+        ExpressionAttributeValues: expressionAttributeValues,
+        ...(expressionAttributeNames && { ExpressionAttributeNames: expressionAttributeNames }),
       })
     );
 
-    return NextResponse.json({ success: true, phase });
+    const taskStatus = newTaskStatus ?? Item.status;
+    return NextResponse.json({ success: true, phase, taskStatus });
   } catch (error: any) {
     console.error("Error updating phase:", error);
     return NextResponse.json({ error: "Failed to update phase" }, { status: 500 });

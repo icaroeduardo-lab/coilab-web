@@ -37,6 +37,56 @@ export async function GET(request: Request) {
       );
     }
 
+    // Auto-correct kanban status based on phase states
+    const updates: { id: string; status: string }[] = [];
+
+    tasks = tasks.map((task: any) => {
+      const enabled = (task.phases || []).filter((p: any) => p.enabled);
+      if (enabled.length === 0) return task;
+
+      const hasActiveWork = enabled.some((p: any) =>
+        ["in_progress", "not_started"].includes(p.status)
+      );
+      const hasAnyStarted = enabled.some((p: any) =>
+        ["in_progress", "completed", "approved", "rejected"].includes(p.status)
+      );
+      const allCompletedOrApproved = enabled.every((p: any) =>
+        ["completed", "approved"].includes(p.status)
+      );
+
+      let correctedStatus = task.status;
+
+      if (task.status === "Backlog" && hasAnyStarted) {
+        correctedStatus = "Em Execução";
+      } else if (task.status === "Em Execução" && allCompletedOrApproved) {
+        correctedStatus = "Checkout";
+      } else if (task.status === "Checkout" && hasActiveWork) {
+        correctedStatus = "Em Execução";
+      }
+
+      if (correctedStatus !== task.status) {
+        updates.push({ id: task.id, status: correctedStatus });
+        return { ...task, status: correctedStatus };
+      }
+      return task;
+    });
+
+    if (updates.length > 0) {
+      await Promise.all(
+        updates.map(({ id, status }) =>
+          docClient.send(
+            new UpdateCommand({
+              TableName: tableName,
+              Key: { id },
+              UpdateExpression: "set #s = :s",
+              ExpressionAttributeNames: { "#s": "status" },
+              ExpressionAttributeValues: { ":s": status },
+            })
+          )
+        )
+      );
+    }
+
     return NextResponse.json(tasks);
   } catch (error: any) {
     console.error("Error fetching tasks from DynamoDB:", error);

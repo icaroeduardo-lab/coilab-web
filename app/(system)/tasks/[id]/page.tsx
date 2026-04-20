@@ -3,12 +3,13 @@
 import { useRouter, useParams } from "next/navigation"
 import { useState } from "react"
 import { ArrowLeft, AlertCircle, Loader2, User, Calendar, Plus, Trash2, Check, PlayCircle, CheckCircle2, RotateCcw, Clock, Save } from "lucide-react"
-import useSWR from "swr"
+import useSWR, { useSWRConfig } from "swr"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DiscoveryPhaseTab } from "./discovery-form"
+import { PhaseApproval } from "@/components/phase-approval"
 import { Calendar as CalendarPicker } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { format } from "date-fns"
@@ -21,7 +22,7 @@ type Phase = {
   name: string
   order: number
   enabled: boolean
-  status: "not_started" | "in_progress" | "completed"
+  status: "not_started" | "in_progress" | "completed" | "approved" | "rejected"
   dueDate?: string
   startedAt?: string
   completedAt?: string
@@ -99,17 +100,31 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 function PhaseStatusBadge({ status }: { status: string }) {
-  if (status === "completed") {
+  if (status === "approved") {
     return (
       <Badge className="gap-1 bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800">
         <Check className="h-3 w-3" />
-        Concluída
+        Aprovada
+      </Badge>
+    )
+  }
+  if (status === "rejected") {
+    return (
+      <Badge className="gap-1 bg-red-100 text-red-700 border border-red-200 dark:bg-red-950/30 dark:text-red-400 dark:border-red-800">
+        Reprovada
+      </Badge>
+    )
+  }
+  if (status === "completed") {
+    return (
+      <Badge className="gap-1 bg-sky-100 text-sky-700 border border-sky-200 dark:bg-sky-950/30 dark:text-sky-400 dark:border-sky-800">
+        Aguardando Aprovação
       </Badge>
     )
   }
   if (status === "in_progress") {
     return (
-      <Badge className="gap-1 bg-sky-100 text-sky-700 border border-sky-200 dark:bg-sky-950/30 dark:text-sky-400 dark:border-sky-800">
+      <Badge className="gap-1 bg-amber-100 text-amber-700 border border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800">
         Em Progresso
       </Badge>
     )
@@ -150,6 +165,7 @@ export function PhaseDateBar({ phase }: { phase: Phase }) {
 
 function usePhaseActions(phase: Phase, taskId: string, onPhaseUpdate: (phases: Phase[]) => void) {
   const { mutate } = useSWR<Task>(`/api/tasks/${taskId}`, fetcher)
+  const { mutate: mutateGlobal } = useSWRConfig()
   const [isLoading, setIsLoading] = useState(false)
 
   const callPhaseAction = async (action: "start" | "complete" | "reopen", extra?: object) => {
@@ -161,13 +177,20 @@ function usePhaseActions(phase: Phase, taskId: string, onPhaseUpdate: (phases: P
         body: JSON.stringify({ action, ...extra }),
       })
       if (!res.ok) throw new Error("Erro ao atualizar fase")
-      const { phase: updated } = await res.json()
+      const { phase: updated, taskStatus } = await res.json()
       mutate(
         (current) => current
-          ? { ...current, phases: current.phases?.map(p => p.id === phase.id ? updated : p) }
+          ? {
+              ...current,
+              ...(taskStatus && { status: taskStatus }),
+              phases: current.phases?.map(p => p.id === phase.id ? updated : p),
+            }
           : current,
         { revalidate: false }
       )
+      if (action === "start" && taskStatus) {
+        mutateGlobal("/api/tasks")
+      }
       onPhaseUpdate([])
     } catch (error) {
       console.error("Error updating phase:", error)
@@ -213,6 +236,9 @@ function PhaseStatusHeader({
               <RotateCcw className="h-3.5 w-3.5" />
               Reabrir Fase
             </Button>
+          )}
+          {(phase.status === "approved" || phase.status === "rejected") && (
+            <Badge variant="outline" className="text-xs text-muted-foreground">Fase encerrada</Badge>
           )}
         </div>
       </div>
@@ -362,6 +388,21 @@ function PhasesCard({
   const [isSaving, setIsSaving] = useState(false)
   const [errors, setErrors] = useState<{ phase?: string; date?: string }>({})
 
+  const { data: allApprovals } = useSWR<{ phaseId: string; status: string; createdAt: string }[]>(
+    `/api/approvals?taskId=${taskId}`,
+    fetcher
+  )
+
+  const effectiveStatus = (phase: Phase): Phase["status"] => {
+    if (!allApprovals) return phase.status
+    const phaseApprovals = allApprovals
+      .filter(a => a.phaseId === phase.id)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    const latest = phaseApprovals[0]
+    if (!latest) return phase.status
+    return latest.status as Phase["status"]
+  }
+
   const disabledPhases = ALL_PHASES.filter(
     p => !allPhases.find(ap => ap.id === p.id && ap.enabled)
   )
@@ -447,24 +488,28 @@ function PhasesCard({
               </tr>
             </thead>
             <tbody className="divide-y">
-              {enabledPhases.map((phase) => (
+              {enabledPhases.map((phase) => {
+                const status = effectiveStatus(phase)
+                return (
                 <tr key={phase.id} className="hover:bg-muted/30 transition-colors">
                   <td className="px-6 py-3">
                     <div className="flex items-center gap-2.5">
                       <div className={`h-2 w-2 rounded-full shrink-0 ${
-                        phase.status === "completed" ? "bg-emerald-500" :
-                        phase.status === "in_progress" ? "bg-sky-500" : "bg-muted-foreground/30"
+                        status === "approved" ? "bg-emerald-500" :
+                        status === "rejected" ? "bg-red-500" :
+                        status === "completed" ? "bg-sky-500" :
+                        status === "in_progress" ? "bg-amber-500" : "bg-muted-foreground/30"
                       }`} />
                       <span className="font-medium">{phase.name}</span>
                     </div>
                   </td>
-                  <td className="px-4 py-3"><PhaseStatusBadge status={phase.status} /></td>
+                  <td className="px-4 py-3"><PhaseStatusBadge status={status} /></td>
                   <td className="px-4 py-3 text-muted-foreground">{fmtDate(phase.dueDate)}</td>
                   <td className="px-4 py-3 text-muted-foreground">{fmtDate(phase.startedAt)}</td>
                   <td className="px-4 py-3 text-muted-foreground">{fmtDate(phase.completedAt)}</td>
                   <td className="px-4 py-3" />
                 </tr>
-              ))}
+              )})}
 
               {isAdding && (
                 <tr className="bg-muted/20">
@@ -589,7 +634,9 @@ function DesignPhaseTab({
           </div>
         </div>
         <div className="flex gap-2">
-          {phase.status === "completed" ? (
+          {(phase.status === "approved" || phase.status === "rejected") ? (
+            <Badge variant="outline" className="text-xs text-muted-foreground">Fase encerrada</Badge>
+          ) : phase.status === "completed" ? (
             <Button size="sm" variant="outline" disabled={isLoading} onClick={() => callPhaseAction("reopen")} className="gap-2">
               <RotateCcw className="h-3.5 w-3.5" />
               Reabrir Design
@@ -779,34 +826,52 @@ export default function TaskDetailPage() {
             <TabsContent key={phase.id} value={phase.id}>
               <Card>
                 <CardContent className="pt-6">
-                  {phase.id === "discovery" ? (
+                  {phase.id.startsWith("discovery") ? (
                     <div className="space-y-6">
+                      {(phase.status === "completed" || phase.status === "approved" || phase.status === "rejected") && (
+                        <PhaseApproval
+                          taskId={id}
+                          phaseId={phase.id}
+                          onApproved={() => mutate()}
+                          onRejected={() => mutate()}
+                        />
+                      )}
                       <DiscoveryPhaseTab
                         phase={phase}
                         taskId={id}
                         onPhaseUpdate={setPhases}
                       />
                     </div>
-                  ) : phase.id === "design" ? (
-                    <DesignPhaseTab
-                      phase={phase}
-                      taskId={id}
-                      taskNumber={data.taskNumber}
-                      initialDesigns={data.design || []}
-                      onSave={async (designs) => {
-                        try {
-                          await fetch(`/api/designs?taskId=${id}`, {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ taskId: id, designs }),
-                          })
-                          mutate()
-                        } catch (error) {
-                          console.error("Error saving designs:", error)
-                        }
-                      }}
-                      onPhaseUpdate={setPhases}
-                    />
+                  ) : phase.id.startsWith("design") ? (
+                    <div className="space-y-6">
+                      {(phase.status === "completed" || phase.status === "approved" || phase.status === "rejected") && (
+                        <PhaseApproval
+                          taskId={id}
+                          phaseId={phase.id}
+                          onApproved={() => mutate()}
+                          onRejected={() => mutate()}
+                        />
+                      )}
+                      <DesignPhaseTab
+                        phase={phase}
+                        taskId={id}
+                        taskNumber={data.taskNumber}
+                        initialDesigns={data.design || []}
+                        onSave={async (designs) => {
+                          try {
+                            await fetch(`/api/designs?taskId=${id}`, {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ taskId: id, designs }),
+                            })
+                            mutate()
+                          } catch (error) {
+                            console.error("Error saving designs:", error)
+                          }
+                        }}
+                        onPhaseUpdate={setPhases}
+                      />
+                    </div>
                   ) : (
                     <PhaseTab
                       phase={phase}
