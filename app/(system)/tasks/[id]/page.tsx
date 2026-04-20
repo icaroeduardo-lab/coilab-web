@@ -885,6 +885,53 @@ export default function TaskDetailPage() {
                     ))}
                   </div>
                 </div>
+                {/* Subtasks list */}
+                {enabledPhases.length > 0 && (
+                  <div className="space-y-1.5 pt-4 border-t">
+                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Subtarefas</label>
+                    <div className="divide-y border rounded-lg overflow-hidden">
+                      {enabledPhases.map(phase => (
+                        <div key={phase.id} className="flex items-center justify-between px-3 py-2.5 bg-background hover:bg-muted/40 transition-colors">
+                          <div className="flex items-center gap-2.5">
+                            <div className={`h-1.5 w-1.5 rounded-full shrink-0 ${
+                              phase.status === "approved" ? "bg-emerald-500" :
+                              phase.status === "rejected" ? "bg-red-500" :
+                              phase.status === "completed" ? "bg-sky-500" :
+                              phase.status === "in_progress" ? "bg-amber-500" : "bg-muted-foreground/30"
+                            }`} />
+                            <span className="text-sm">{phase.name}</span>
+                          </div>
+                          <button
+                            type="button"
+                            disabled={isSavingEdit}
+                            onClick={async () => {
+                              const updated = (data?.phases || []).map(p =>
+                                p.id === phase.id ? { ...p, enabled: false } : p
+                              )
+                              setIsSavingEdit(true)
+                              try {
+                                await fetch(`/api/tasks/${id}`, {
+                                  method: "PATCH",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({ phases: updated }),
+                                })
+                                await mutate()
+                                mutateGlobalTasks("/api/tasks")
+                              } finally {
+                                setIsSavingEdit(false)
+                              }
+                            }}
+                            className="p-1 rounded text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-40"
+                            title={`Remover ${phase.name}`}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex gap-3 mt-auto pt-4 border-t">
                   <Button onClick={handleSaveEdit} disabled={isSavingEdit} className="flex-1 gap-2">
                     {isSavingEdit ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
