@@ -68,7 +68,7 @@ export default function DesignGallery({
                 src={design.url}
                 alt={design.description}
                 fill
-                className="object-cover transition-transform duration-300 group-hover:scale-105"
+                className="object-contain"
                 priority={false}
               />
 
