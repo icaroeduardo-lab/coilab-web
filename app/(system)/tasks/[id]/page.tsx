@@ -713,7 +713,7 @@ export default function TaskDetailPage() {
     }
   }
 
-  const enabledPhases = (subtasksData || []).slice().sort((a, b) => a.order - b.order)
+  const enabledPhases = (Array.isArray(subtasksData) ? subtasksData : []).slice().sort((a, b) => a.order - b.order)
 
   if (isLoading) {
     return (
