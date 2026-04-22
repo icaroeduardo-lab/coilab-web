@@ -14,23 +14,32 @@ const client = new DynamoDBClient({
 const docClient = DynamoDBDocumentClient.from(client);
 
 const APPROVALS_TABLE = "coilab-approvals";
-const SUBTASKS_TABLE = process.env.DYNAMODB_TABLE_SUBTASKS || "coilab-subtasks";
 
-function deriveKanbanStatus(subtasks: any[], currentStatus: string, wasRejected: boolean): string | null {
-  if (subtasks.length === 0) return null;
+/**
+ * For each base type, find the latest version (highest order).
+ * → Checkout : all latest are "completed" or "approved"
+ * → Em Execução : any latest is "rejected" / "in_progress" / "not_started"
+ */
+function deriveKanbanStatus(phases: any[], currentStatus: string, wasRejected: boolean): string | null {
+  const enabled = phases.filter((p: any) => p.enabled);
+  if (enabled.length === 0) return null;
 
   const latestByBase = new Map<string, any>();
-  for (const s of subtasks) {
-    const base = s.baseType;
+  for (const phase of enabled) {
+    const base = (phase.id as string).split("_")[0];
     const cur = latestByBase.get(base);
-    if (!cur || (s.order ?? 0) > (cur.order ?? 0)) latestByBase.set(base, s);
+    if (!cur || (phase.order ?? 0) > (cur.order ?? 0)) latestByBase.set(base, phase);
   }
-  const latest = [...latestByBase.values()];
 
-  const allReady = latest.every(s => ["completed", "approved"].includes(s.status));
-  const hasBlocker = latest.some(s => ["rejected", "in_progress", "not_started"].includes(s.status));
+  const latestPhases = [...latestByBase.values()];
+  const allReadyForCheckout = latestPhases.every((p: any) =>
+    ["completed", "approved"].includes(p.status)
+  );
+  const hasBlocker = latestPhases.some((p: any) =>
+    ["rejected", "in_progress", "not_started"].includes(p.status)
+  );
 
-  if (allReady && (currentStatus === "Em Execução" || currentStatus === "Checkout")) return "Checkout";
+  if (allReadyForCheckout && (currentStatus === "Em Execução" || currentStatus === "Checkout")) return "Checkout";
   if (hasBlocker && (currentStatus === "Checkout" || wasRejected)) return "Em Execução";
   return null;
 }
@@ -56,11 +65,11 @@ export async function GET(request: Request) {
 
     let results = (Items || []) as any[];
     if (phaseId) {
-      results = results.filter(item => item.phaseId === phaseId);
+      results = results.filter((item) => item.phaseId === phaseId);
     }
 
-    results.sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    results.sort((a, b) =>
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
 
     return NextResponse.json(results);
@@ -82,20 +91,14 @@ export async function POST(request: Request) {
     };
 
     if (!taskId || !phaseId || !status) {
-      return NextResponse.json(
-        { error: "taskId, phaseId and status are required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "taskId, phaseId and status are required" }, { status: 400 });
     }
 
     if (status === "rejected" && !comment?.trim()) {
-      return NextResponse.json(
-        { error: "Justificativa é obrigatória ao reprovar" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Justificativa é obrigatória ao reprovar" }, { status: 400 });
     }
 
-    // Block if already decided for this phase
+    // Block if an approval already exists for this phase
     const { Items: existing } = await docClient.send(
       new QueryCommand({
         TableName: APPROVALS_TABLE,
@@ -104,14 +107,11 @@ export async function POST(request: Request) {
         ExpressionAttributeValues: { ":taskId": taskId },
       })
     );
-    if ((existing || []).some((a: any) => a.phaseId === phaseId)) {
-      return NextResponse.json(
-        { error: "Esta fase já foi aprovada ou reprovada" },
-        { status: 409 }
-      );
+    const alreadyDecided = (existing || []).some((a: any) => a.phaseId === phaseId);
+    if (alreadyDecided) {
+      return NextResponse.json({ error: "Esta fase já foi aprovada ou reprovada" }, { status: 409 });
     }
 
-    // Save approval record
     const approval = {
       id: uuidv4(),
       taskId,
@@ -121,83 +121,56 @@ export async function POST(request: Request) {
       approvedBy: session?.user?.name || "Usuário",
       createdAt: new Date().toISOString(),
     };
+
     await docClient.send(new PutCommand({ TableName: APPROVALS_TABLE, Item: approval }));
 
-    // Update subtask status
-    const { Item: subtask } = await docClient.send(
-      new GetCommand({ TableName: SUBTASKS_TABLE, Key: { id: phaseId } })
-    );
-
-    let newSubtask: any = null;
-
-    if (subtask) {
-      await docClient.send(
-        new UpdateCommand({
-          TableName: SUBTASKS_TABLE,
-          Key: { id: phaseId },
-          UpdateExpression: "set #s = :s",
-          ExpressionAttributeNames: { "#s": "status" },
-          ExpressionAttributeValues: { ":s": status },
-        })
-      );
-
-      if (status === "rejected") {
-        // Fetch all subtasks for this task to compute round count and max order
-        const { Items: taskSubtasks } = await docClient.send(
-          new QueryCommand({
-            TableName: SUBTASKS_TABLE,
-            IndexName: "taskId-index",
-            KeyConditionExpression: "taskId = :tid",
-            ExpressionAttributeValues: { ":tid": taskId },
-          })
-        );
-        const all = taskSubtasks || [];
-        const sameBase = all.filter(s => s.baseType === subtask.baseType);
-        const maxOrder = all.reduce((m: number, s: any) => Math.max(m, s.order ?? 0), 0);
-        const baseName = subtask.baseType.charAt(0).toUpperCase() + subtask.baseType.slice(1);
-
-        newSubtask = {
-          id: uuidv4(),
-          taskId,
-          name: `${baseName} ${sameBase.length + 1}`,
-          baseType: subtask.baseType,
-          order: maxOrder + 1,
-          status: "not_started",
-          notes: "",
-          checklist: [],
-          createdAt: new Date().toISOString(),
-        };
-        await docClient.send(new PutCommand({ TableName: SUBTASKS_TABLE, Item: newSubtask }));
-      }
-    }
-
-    // Derive new task kanban status
+    // Update phase status and derive new task kanban status
     const tasksTable = process.env.DYNAMODB_TABLE_TASKS;
     if (tasksTable) {
-      const { Item: task } = await docClient.send(
+      const { Item } = await docClient.send(
         new GetCommand({ TableName: tasksTable, Key: { id: taskId } })
       );
-      if (task) {
-        const { Items: allSubtasks } = await docClient.send(
-          new QueryCommand({
-            TableName: SUBTASKS_TABLE,
-            IndexName: "taskId-index",
-            KeyConditionExpression: "taskId = :tid",
-            ExpressionAttributeValues: { ":tid": taskId },
-          })
-        );
-        const updatedList = (allSubtasks || []).map(s =>
-          s.id === phaseId ? { ...s, status } : s
-        );
-        if (newSubtask) updatedList.push(newSubtask);
+      if (Item) {
+        const phases: any[] = Item.phases || [];
 
-        const newTaskStatus = deriveKanbanStatus(updatedList, task.status, status === "rejected");
+        // Lock current phase as approved or rejected
+        let updatedPhases = phases.map((p: any) =>
+          p.id === phaseId ? { ...p, status } : p
+        );
+
+        // On rejection: create a new phase of the same type
+        if (status === "rejected") {
+          const baseType = phaseId.split("_")[0];
+          const roundCount = phases.filter(
+            (p: any) => p.id === baseType || p.id.startsWith(baseType + "_")
+          ).length;
+          const newPhaseId = `${baseType}_${roundCount + 1}`;
+          const baseName = baseType.charAt(0).toUpperCase() + baseType.slice(1);
+          const maxOrder = phases.reduce((max: number, p: any) => Math.max(max, p.order || 0), 0);
+          updatedPhases = [
+            ...updatedPhases,
+            {
+              id: newPhaseId,
+              name: `${baseName} ${roundCount + 1}`,
+              order: maxOrder + 1,
+              enabled: true,
+              status: "not_started",
+              checklist: [],
+            },
+          ];
+        }
+
+        // Derive kanban status using latest-per-type rule
+        const newTaskStatus = deriveKanbanStatus(updatedPhases, Item.status, status === "rejected");
 
         const updateExpr = newTaskStatus
-          ? "set #s = :s, hasRejection = :r"
-          : "set hasRejection = :r";
-        const exprValues: Record<string, any> = { ":r": status === "rejected" };
+          ? "set phases = :p, #s = :s, hasRejection = :r"
+          : "set phases = :p, hasRejection = :r";
         const exprNames: Record<string, string> = newTaskStatus ? { "#s": "status" } : {};
+        const exprValues: Record<string, any> = {
+          ":p": updatedPhases,
+          ":r": status === "rejected",
+        };
         if (newTaskStatus) exprValues[":s"] = newTaskStatus;
 
         await docClient.send(
@@ -212,7 +185,7 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({ ...approval, newSubtask });
+    return NextResponse.json(approval);
   } catch (error) {
     console.error("Error creating approval:", error);
     return NextResponse.json({ error: "Failed to create approval" }, { status: 500 });
