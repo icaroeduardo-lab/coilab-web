@@ -158,7 +158,7 @@ export default function Page() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsSubmitting(true)
     try {
-      // 1. Create project first to get the projectNumber
+      // 1. Create project
       const createRes = await fetch("/api/projects", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -167,28 +167,26 @@ export default function Page() {
       if (!createRes.ok) throw new Error("Erro ao salvar o projeto")
       const created = await createRes.json()
 
-      // 2. Upload file with projectNumber in the filename
-      if (selectedFile) {
-        const formData = new FormData()
-        formData.append("file", selectedFile)
-        if (created.item?.projectNumber) {
-          formData.append("projectNumber", created.item.projectNumber)
-        }
-        const uploadRes = await fetch("/api/projects/documents/upload", {
-          method: "POST",
-          body: formData,
-        })
-        if (!uploadRes.ok) {
-          const err = await uploadRes.json()
-          throw new Error(err.error || "Falha no upload do documento")
-        }
-        const { documentPath } = await uploadRes.json()
+      // 2. Upload document via presigned URL
+      if (selectedFile && created.id) {
+        const urlRes = await fetch(
+          `/api/projects/${created.id}/upload-url?filename=${encodeURIComponent(selectedFile.name)}`,
+        )
+        if (!urlRes.ok) throw new Error("Falha ao obter URL de upload")
+        const { uploadUrl, fileUrl } = await urlRes.json()
 
-        // 3. Update project with documentPath
-        await fetch(`/api/projects/${created.item.id}`, {
+        const putRes = await fetch(uploadUrl, {
+          method: "PUT",
+          body: selectedFile,
+          headers: { "Content-Type": "text/markdown" },
+        })
+        if (!putRes.ok) throw new Error("Falha no upload do documento")
+
+        // 3. Update project with document URL
+        await fetch(`/api/projects/${created.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ documentPath }),
+          body: JSON.stringify({ documentPath: fileUrl }),
         })
       }
 
