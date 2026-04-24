@@ -24,6 +24,7 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 type Phase = {
   id: string
+  type?: string
   name: string
   order: number
   enabled: boolean
@@ -372,8 +373,7 @@ function PhaseTab({ phase, taskId, onPhaseUpdate }: { phase: Phase; taskId: stri
 const ALL_PHASES = [
   { id: "discovery", name: "Discovery", order: 1 },
   { id: "design", name: "Design", order: 2 },
-  { id: "development", name: "Development", order: 3 },
-  { id: "testes", name: "Testes", order: 4 },
+  { id: "diagram", name: "Diagram", order: 3 },
 ]
 
 function PhasesCard({
@@ -1074,7 +1074,7 @@ export default function TaskDetailPage() {
             <TabsContent key={phase.id} value={phase.id}>
               <Card>
                 <CardContent className="pt-6">
-                  {phase.id.startsWith("discovery") ? (
+                  {(phase.type === "discovery" || phase.id.startsWith("discovery")) ? (
                     <div className="space-y-6">
                       {(phase.status === "completed" || phase.status === "approved" || phase.status === "rejected") && (
                         <PhaseApproval
@@ -1090,7 +1090,7 @@ export default function TaskDetailPage() {
                         onPhaseUpdate={setPhases}
                       />
                     </div>
-                  ) : phase.id.startsWith("design") ? (
+                  ) : (phase.type === "design" || phase.id.startsWith("design")) ? (
                     <div className="space-y-6">
                       {(phase.status === "completed" || phase.status === "approved" || phase.status === "rejected") && (
                         <PhaseApproval

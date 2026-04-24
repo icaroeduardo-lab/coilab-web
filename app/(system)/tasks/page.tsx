@@ -401,8 +401,7 @@ export default function Page() {
   const DEFAULT_PHASES = [
     { id: "discovery", name: "Discovery" },
     { id: "design", name: "Design" },
-    { id: "development", name: "Development" },
-    { id: "testes", name: "Testes" },
+    { id: "diagram", name: "Diagram" },
   ]
   const phases = DEFAULT_PHASES
 
