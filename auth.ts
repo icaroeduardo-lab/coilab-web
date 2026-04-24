@@ -1,7 +1,5 @@
 import NextAuth from "next-auth"
 import Cognito from "next-auth/providers/cognito"
-import type { JWT } from "next-auth/jwt"
-import type { Session, Account } from "next-auth"
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   debug: true,
@@ -17,13 +15,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     signIn: "/login",
   },
   callbacks: {
-    async jwt({ token, account }: { token: JWT; account: Account | null }) {
+    async jwt({ token, account }) {
       if (account?.access_token) {
         token.accessToken = account.access_token
       }
       return token
     },
-    async session({ session, token }: { session: Session; token: JWT }) {
+    async session({ session, token }) {
       session.accessToken = token.accessToken as string | undefined
       return session
     },
