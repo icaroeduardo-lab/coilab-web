@@ -34,6 +34,7 @@ type Phase = {
   completedAt?: string
   notes?: string
   checklist: { id: string; label: string; completed: boolean }[]
+  designs?: Design[]
   discoveryData?: any
 }
 
@@ -590,15 +591,11 @@ function DesignPhaseTab({
   phase,
   taskId,
   taskNumber,
-  initialDesigns,
-  onSave,
   onPhaseUpdate,
 }: {
   phase: Phase
   taskId: string
   taskNumber?: string
-  initialDesigns: any[]
-  onSave: (designs: any[]) => Promise<void>
   onPhaseUpdate: (phases: Phase[]) => void
 }) {
   const { isLoading, callPhaseAction } = usePhaseActions(phase, taskId, onPhaseUpdate)
@@ -647,24 +644,18 @@ function DesignPhaseTab({
               Reabrir Design
             </Button>
           ) : (
-            <>
-              <Button size="sm" variant="outline" disabled={isLoading} onClick={() => onSave(initialDesigns)} className="gap-2">
-                <Save className="h-3.5 w-3.5" />
-                Salvar Rascunho
-              </Button>
-              <Button size="sm" disabled={isLoading} onClick={() => callPhaseAction("complete")} className="gap-2">
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                Finalizar Design
-              </Button>
-            </>
+            <Button size="sm" disabled={isLoading} onClick={() => callPhaseAction("complete")} className="gap-2">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              Finalizar Design
+            </Button>
           )}
         </div>
       </div>
       <DesignManager
         taskId={taskId}
+        subTaskId={phase.id}
         taskNumber={taskNumber}
-        initialDesigns={initialDesigns}
-        onSave={onSave}
+        initialDesigns={phase.designs ?? []}
       />
     </div>
   )
@@ -1104,19 +1095,6 @@ export default function TaskDetailPage() {
                         phase={phase}
                         taskId={id}
                         taskNumber={data.taskNumber}
-                        initialDesigns={data.design || []}
-                        onSave={async (designs) => {
-                          try {
-                            await fetch(`/api/designs?taskId=${id}`, {
-                              method: "POST",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ taskId: id, designs }),
-                            })
-                            mutate()
-                          } catch (error) {
-                            console.error("Error saving designs:", error)
-                          }
-                        }}
                         onPhaseUpdate={setPhases}
                       />
                     </div>

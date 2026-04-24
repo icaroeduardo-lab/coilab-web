@@ -53,8 +53,10 @@ export function normalizeSubTask(st: any) {
     dueDate: st.expectedDelivery ?? undefined,
     startedAt: st.startDate ?? undefined,
     completedAt: st.completionDate ?? undefined,
+    reason: st.reason ?? undefined,
     notes: "",
     checklist: [] as { id: string; label: string; completed: boolean }[],
+    designs: (st.designs ?? []) as { id: string; url: string; title: string; description: string }[],
   }
 }
 
