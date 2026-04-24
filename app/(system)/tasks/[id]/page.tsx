@@ -24,10 +24,9 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 type Phase = {
   id: string
-  taskId?: string
   name: string
-  baseType?: string
   order: number
+  enabled: boolean
   status: "not_started" | "in_progress" | "completed" | "approved" | "rejected"
   dueDate?: string
   startedAt?: string
@@ -48,6 +47,7 @@ type Task = {
   createdAt: string
   description?: string
   design?: Design[]
+  phases?: Phase[]
   flows?: { id: string; name: string }[]
 }
 
@@ -169,33 +169,36 @@ export function PhaseDateBar({ phase }: { phase: Phase }) {
 }
 
 function usePhaseActions(phase: Phase, taskId: string, onPhaseUpdate: (phases: Phase[]) => void) {
-  const { mutate: mutateTask } = useSWR<Task>(`/api/tasks/${taskId}`, fetcher)
-  const { mutate: mutateSubtasks } = useSWR<Phase[]>(`/api/subtasks?taskId=${taskId}`, fetcher)
+  const { mutate } = useSWR<Task>(`/api/tasks/${taskId}`, fetcher)
   const { mutate: mutateGlobal } = useSWRConfig()
   const [isLoading, setIsLoading] = useState(false)
 
   const callPhaseAction = async (action: "start" | "complete" | "reopen", extra?: object) => {
     setIsLoading(true)
     try {
-      const res = await fetch(`/api/subtasks/${phase.id}`, {
+      const res = await fetch(`/api/tasks/${taskId}/phases/${phase.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action, ...extra }),
       })
-      if (!res.ok) throw new Error("Erro ao atualizar subtarefa")
-      const { subtask: updated, taskStatus } = await res.json()
-
-      mutateSubtasks(
-        (current) => current ? current.map(p => p.id === phase.id ? updated : p) : current,
+      if (!res.ok) throw new Error("Erro ao atualizar fase")
+      const { phase: updated, taskStatus } = await res.json()
+      mutate(
+        (current) => current
+          ? {
+              ...current,
+              ...(taskStatus && { status: taskStatus }),
+              phases: current.phases?.map(p => p.id === phase.id ? updated : p),
+            }
+          : current,
         { revalidate: false }
       )
-      if (taskStatus) {
-        mutateTask(current => current ? { ...current, status: taskStatus } : current, { revalidate: false })
+      if (action === "start" && taskStatus) {
         mutateGlobal("/api/tasks")
       }
       onPhaseUpdate([])
     } catch (error) {
-      console.error("Error updating subtask:", error)
+      console.error("Error updating phase:", error)
     } finally {
       setIsLoading(false)
     }
@@ -255,7 +258,7 @@ function PhaseStatusHeader({
 }
 
 function PhaseTab({ phase, taskId, onPhaseUpdate }: { phase: Phase; taskId: string; onPhaseUpdate: (phases: Phase[]) => void }) {
-  const { mutate: mutateSubtasks } = useSWR<Phase[]>(`/api/subtasks?taskId=${taskId}`, fetcher)
+  const { mutate } = useSWR<Task>(`/api/tasks/${taskId}`, fetcher)
   const { isLoading, callPhaseAction } = usePhaseActions(phase, taskId, onPhaseUpdate)
   const [notes, setNotes] = useState(phase.notes || "")
   const [checklist, setChecklist] = useState(phase.checklist || [])
@@ -263,12 +266,15 @@ function PhaseTab({ phase, taskId, onPhaseUpdate }: { phase: Phase; taskId: stri
 
   const handleSaveRascunho = async () => {
     try {
-      await fetch(`/api/subtasks/${phase.id}`, {
+      await fetch(`/api/tasks/${taskId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ notes, checklist }),
+        body: JSON.stringify({
+          phases: [{ id: phase.id, notes, checklist }],
+          partialPhaseUpdate: true,
+        }),
       })
-      mutateSubtasks()
+      mutate()
     } catch {
       console.error("Erro ao salvar rascunho")
     }
@@ -363,59 +369,91 @@ function PhaseTab({ phase, taskId, onPhaseUpdate }: { phase: Phase; taskId: stri
   )
 }
 
-const ALL_BASE_TYPES = [
-  { id: "discovery", name: "Discovery", order: 0 },
-  { id: "design", name: "Design", order: 1 },
-  { id: "development", name: "Development", order: 2 },
-  { id: "testes", name: "Testes", order: 3 },
+const ALL_PHASES = [
+  { id: "discovery", name: "Discovery", order: 1 },
+  { id: "design", name: "Design", order: 2 },
+  { id: "development", name: "Development", order: 3 },
+  { id: "testes", name: "Testes", order: 4 },
 ]
 
 function PhasesCard({
-  subtasks,
+  allPhases,
+  enabledPhases,
   taskId,
   onUpdate,
 }: {
-  subtasks: Phase[]
+  allPhases: Phase[]
+  enabledPhases: Phase[]
   taskId: string
   onUpdate: () => void
 }) {
   const [isAdding, setIsAdding] = useState(false)
-  const [selectedBaseType, setSelectedBaseType] = useState("")
+  const [selectedPhaseId, setSelectedPhaseId] = useState("")
   const [dueDate, setDueDate] = useState<Date | undefined>(undefined)
   const [isSaving, setIsSaving] = useState(false)
   const [errors, setErrors] = useState<{ phase?: string; date?: string }>({})
 
-  const existingBaseTypes = new Set(subtasks.map(s => s.baseType))
-  const addableTypes = ALL_BASE_TYPES.filter(t => !existingBaseTypes.has(t.id))
+  const { data: allApprovals } = useSWR<{ phaseId: string; status: string; createdAt: string }[]>(
+    `/api/approvals?taskId=${taskId}`,
+    fetcher
+  )
+
+  const effectiveStatus = (phase: Phase): Phase["status"] => {
+    if (!allApprovals) return phase.status
+    const phaseApprovals = allApprovals
+      .filter(a => a.phaseId === phase.id)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    const latest = phaseApprovals[0]
+    if (!latest) return phase.status
+    return latest.status as Phase["status"]
+  }
+
+  const disabledPhases = ALL_PHASES.filter(
+    p => !allPhases.find(ap => ap.id === p.id && ap.enabled)
+  )
 
   const handleAdd = async () => {
     const newErrors: { phase?: string; date?: string } = {}
-    if (!selectedBaseType) newErrors.phase = "Selecione uma fase"
+    if (!selectedPhaseId) newErrors.phase = "Selecione uma fase"
     if (!dueDate) newErrors.date = "Selecione uma data"
     if (Object.keys(newErrors).length > 0) { setErrors(newErrors); return }
 
     setIsSaving(true)
     try {
-      const template = ALL_BASE_TYPES.find(t => t.id === selectedBaseType)!
-      await fetch("/api/subtasks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          taskId,
-          name: template.name,
-          baseType: template.id,
-          order: template.order,
+      const phaseTemplate = ALL_PHASES.find(p => p.id === selectedPhaseId)!
+      const existing = allPhases.find(p => p.id === selectedPhaseId)
+
+      const updatedPhases = allPhases.map(p =>
+        p.id === selectedPhaseId
+          ? { ...p, enabled: true, dueDate: dueDate!.toISOString() }
+          : p
+      )
+
+      // If phase doesn't exist in array yet, add it
+      if (!existing) {
+        updatedPhases.push({
+          ...phaseTemplate,
+          enabled: true,
+          status: "not_started",
+          notes: "",
+          checklist: [],
           dueDate: dueDate!.toISOString(),
-        }),
+        })
+      }
+
+      await fetch(`/api/tasks/${taskId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phases: updatedPhases }),
       })
 
       onUpdate()
       setIsAdding(false)
-      setSelectedBaseType("")
+      setSelectedPhaseId("")
       setDueDate(undefined)
       setErrors({})
     } catch (error) {
-      console.error("Error adding subtask:", error)
+      console.error("Error adding phase:", error)
     } finally {
       setIsSaving(false)
     }
@@ -423,7 +461,7 @@ function PhasesCard({
 
   const handleCancel = () => {
     setIsAdding(false)
-    setSelectedBaseType("")
+    setSelectedPhaseId("")
     setDueDate(undefined)
     setErrors({})
   }
@@ -433,7 +471,7 @@ function PhasesCard({
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="text-sm font-medium text-muted-foreground">Fases</CardTitle>
-          {addableTypes.length > 0 && !isAdding && (
+          {disabledPhases.length > 0 && !isAdding && (
             <Button size="sm" variant="outline" className="gap-1.5 h-7 px-2.5 text-xs" onClick={() => setIsAdding(true)}>
               <Plus className="h-3.5 w-3.5" />
               Adicionar Fase
@@ -455,8 +493,8 @@ function PhasesCard({
               </tr>
             </thead>
             <tbody className="divide-y">
-              {subtasks.map((phase) => {
-                const status = phase.status
+              {enabledPhases.map((phase) => {
+                const status = effectiveStatus(phase)
                 return (
                 <tr key={phase.id} className="hover:bg-muted/30 transition-colors">
                   <td className="px-6 py-3">
@@ -483,12 +521,12 @@ function PhasesCard({
                   <td className="px-6 py-3">
                     <div className="space-y-1">
                       <select
-                        value={selectedBaseType}
-                        onChange={(e) => { setSelectedBaseType(e.target.value); setErrors(prev => ({ ...prev, phase: undefined })) }}
+                        value={selectedPhaseId}
+                        onChange={(e) => { setSelectedPhaseId(e.target.value); setErrors(prev => ({ ...prev, phase: undefined })) }}
                         className="w-full px-2 py-1.5 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                       >
                         <option value="">Selecionar fase...</option>
-                        {addableTypes.map(p => (
+                        {disabledPhases.map(p => (
                           <option key={p.id} value={p.id}>{p.name}</option>
                         ))}
                       </select>
@@ -638,6 +676,7 @@ export default function TaskDetailPage() {
   const router = useRouter()
   const params = useParams()
   const id = params.id as string
+  const [phases, setPhases] = useState<Phase[]>([])
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -649,10 +688,6 @@ export default function TaskDetailPage() {
 
   const { data, isLoading, error, mutate } = useSWR<Task>(
     id ? `/api/tasks/${id}` : null,
-    fetcher
-  )
-  const { data: subtasksData, mutate: mutateSubtasks } = useSWR<Phase[]>(
-    id ? `/api/subtasks?taskId=${id}` : null,
     fetcher
   )
   const { mutate: mutateGlobalTasks } = useSWRConfig()
@@ -684,13 +719,21 @@ export default function TaskDetailPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(editForm),
         }),
-        ...[...phasesToDelete].map(subtaskId =>
-          fetch(`/api/subtasks/${subtaskId}`, { method: "DELETE" })
-        ),
       ]
+      if (phasesToDelete.size > 0) {
+        const updatedPhases = (data?.phases || []).map(p =>
+          phasesToDelete.has(p.id) ? { ...p, enabled: false } : p
+        )
+        promises.push(
+          fetch(`/api/tasks/${id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ phases: updatedPhases }),
+          })
+        )
+      }
       await Promise.all(promises)
       await mutate()
-      await mutateSubtasks()
       mutateGlobalTasks("/api/tasks")
       setPhasesToDelete(new Set())
       setIsEditOpen(false)
@@ -713,7 +756,7 @@ export default function TaskDetailPage() {
     }
   }
 
-  const enabledPhases = (Array.isArray(subtasksData) ? subtasksData : []).slice().sort((a, b) => a.order - b.order)
+  const enabledPhases = (data?.phases || []).filter(p => p.enabled).sort((a, b) => a.order - b.order)
 
   if (isLoading) {
     return (
@@ -994,11 +1037,12 @@ export default function TaskDetailPage() {
             )}
 
             {/* Phases progress */}
-            {enabledPhases.length > 0 && (
+            {(enabledPhases.length > 0 || (data.phases || []).some(p => !p.enabled)) && (
               <PhasesCard
-                subtasks={enabledPhases}
+                allPhases={data.phases || []}
+                enabledPhases={enabledPhases}
                 taskId={id}
-                onUpdate={() => mutateSubtasks()}
+                onUpdate={() => mutate()}
               />
             )}
 
@@ -1030,30 +1074,30 @@ export default function TaskDetailPage() {
             <TabsContent key={phase.id} value={phase.id}>
               <Card>
                 <CardContent className="pt-6">
-                  {phase.baseType === "discovery" ? (
+                  {phase.id.startsWith("discovery") ? (
                     <div className="space-y-6">
                       {(phase.status === "completed" || phase.status === "approved" || phase.status === "rejected") && (
                         <PhaseApproval
                           taskId={id}
                           phaseId={phase.id}
-                          onApproved={() => mutateSubtasks()}
-                          onRejected={() => mutateSubtasks()}
+                          onApproved={() => mutate()}
+                          onRejected={() => mutate()}
                         />
                       )}
                       <DiscoveryPhaseTab
                         phase={phase}
                         taskId={id}
-                        onPhaseUpdate={() => mutateSubtasks()}
+                        onPhaseUpdate={setPhases}
                       />
                     </div>
-                  ) : phase.baseType === "design" ? (
+                  ) : phase.id.startsWith("design") ? (
                     <div className="space-y-6">
                       {(phase.status === "completed" || phase.status === "approved" || phase.status === "rejected") && (
                         <PhaseApproval
                           taskId={id}
                           phaseId={phase.id}
-                          onApproved={() => mutateSubtasks()}
-                          onRejected={() => mutateSubtasks()}
+                          onApproved={() => mutate()}
+                          onRejected={() => mutate()}
                         />
                       )}
                       <DesignPhaseTab
@@ -1073,14 +1117,14 @@ export default function TaskDetailPage() {
                             console.error("Error saving designs:", error)
                           }
                         }}
-                        onPhaseUpdate={() => mutateSubtasks()}
+                        onPhaseUpdate={setPhases}
                       />
                     </div>
                   ) : (
                     <PhaseTab
                       phase={phase}
                       taskId={id}
-                      onPhaseUpdate={() => mutateSubtasks()}
+                      onPhaseUpdate={setPhases}
                     />
                   )}
                 </CardContent>

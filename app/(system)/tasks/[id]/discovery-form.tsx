@@ -14,14 +14,13 @@ import {
 } from "@/components/ui/accordion"
 import { Label } from "@/components/ui/label"
 import { Loader2, CheckCircle2, Save, Calendar, PlayCircle } from "lucide-react"
-import useSWR, { useSWRConfig } from "swr"
+import useSWR from "swr"
 
 type Phase = {
   id: string
-  taskId?: string
   name: string
-  baseType?: string
   order: number
+  enabled: boolean
   status: "not_started" | "in_progress" | "completed" | "approved" | "rejected"
   dueDate?: string
   startedAt?: string
@@ -109,8 +108,7 @@ function DiscoveryForm({
 }) {
   const [isSaving, setIsSaving] = useState(false)
   const [isCompleting, setIsCompleting] = useState(false)
-  const { data: fetchedTaskData } = useSWR<Task>(`/api/tasks/${taskId}`, fetcher)
-  const { mutate: globalMutate } = useSWRConfig()
+  const { data: fetchedTaskData, mutate } = useSWR<Task>(`/api/tasks/${taskId}`, fetcher)
   const taskData = externalTaskData || fetchedTaskData
 
   const defaultComplexity = initialData?.complexity || "small"
@@ -175,29 +173,32 @@ function DiscoveryForm({
   const saveToPhase = async (discoveryData: DiscoveryData, action?: "start" | "complete") => {
     if (!taskData) return
 
-    // Save discovery data to the subtask
-    await fetch(`/api/subtasks/${phase.id}`, {
+    // Save discovery data via partial phase update
+    await fetch(`/api/tasks/${taskId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ discoveryData }),
+      body: JSON.stringify({
+        phases: [{ id: phase.id, discoveryData }],
+        partialPhaseUpdate: true,
+      }),
     })
 
-    // Update subtask status if needed
+    // Then update phase status if needed
     if (action === "start" && phase.status === "not_started") {
-      await fetch(`/api/subtasks/${phase.id}`, {
+      await fetch(`/api/tasks/${taskId}/phases/${phase.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "start" }),
       })
     } else if (action === "complete") {
-      await fetch(`/api/subtasks/${phase.id}`, {
+      await fetch(`/api/tasks/${taskId}/phases/${phase.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "complete" }),
       })
     }
 
-    globalMutate(`/api/subtasks?taskId=${taskId}`)
+    mutate()
   }
 
   const handleSaveDraft = async () => {
@@ -699,20 +700,19 @@ export function DiscoveryPhaseTab({
   taskId: string
   onPhaseUpdate: (phases: Phase[]) => void
 }) {
-  const { data: taskData } = useSWR<Task>(`/api/tasks/${taskId}`, fetcher)
-  const { mutate: globalMutate } = useSWRConfig()
+  const { data: taskData, mutate } = useSWR<Task>(`/api/tasks/${taskId}`, fetcher)
   const [isEditing, setIsEditing] = useState(false)
   const [isStarting, setIsStarting] = useState(false)
 
   const handleStart = async () => {
     setIsStarting(true)
     try {
-      await fetch(`/api/subtasks/${phase.id}`, {
+      await fetch(`/api/tasks/${taskId}/phases/${phase.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "start" }),
       })
-      globalMutate(`/api/subtasks?taskId=${taskId}`)
+      mutate()
       onPhaseUpdate([])
     } catch (error) {
       console.error("Error starting phase:", error)
@@ -767,7 +767,7 @@ export function DiscoveryPhaseTab({
       taskData={taskData}
       onSaved={(completed) => {
         if (completed) setIsEditing(false)
-        globalMutate(`/api/subtasks?taskId=${taskId}`)
+        mutate()
         onPhaseUpdate([])
       }}
     />
