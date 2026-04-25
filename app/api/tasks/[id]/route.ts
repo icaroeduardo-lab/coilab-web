@@ -2,6 +2,32 @@ import { NextResponse } from "next/server"
 import { apiClient } from "@/lib/api-client"
 import { normalizeTask, denormalizePriority, phaseIdToSubTaskType } from "@/lib/task-normalizer"
 
+const LEVEL_MAP: Record<string, string> = { alta: "Alta", media: "Média", baixa: "Baixa" }
+const FREQ_MAP: Record<string, string> = {
+  diario: "Diária", semanal: "Semanal", mensal: "Mensal", eventual: "Eventual",
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapDiscoveryToBackend(d: any): Record<string, string | undefined> {
+  return {
+    projectName: d.projectName || undefined,
+    summary: d.problemSummary || undefined,
+    painPoints: d.userPains || undefined,
+    frequency: FREQ_MAP[d.frequency] ?? undefined,
+    currentProcess: d.currentProcess || undefined,
+    inactionCost: d.inactionCost || undefined,
+    volume: d.volume || undefined,
+    avgTime: d.averageTime || undefined,
+    humanDependency: LEVEL_MAP[d.humanDependency] ?? undefined,
+    rework: d.reworkRate || (d.complexity === "small" ? "N/A" : undefined),
+    previousAttempts: d.previousAttempts || (d.complexity === "small" ? "N/A" : undefined),
+    benchmark: d.benchmark || (d.complexity === "small" ? "N/A" : undefined),
+    institutionalPriority: LEVEL_MAP[d.institutionalPriority] ?? undefined,
+    technicalOpinion: d.technicalOpinion || undefined,
+    complexity: d.complexity === "complex" ? "Alta" : "Baixa",
+  }
+}
+
 async function resolveProjectId(name: string): Promise<string | null> {
   const res = await apiClient.get<{ data: { id: string; name: string }[] }>("/projects?limit=200")
   return (res.data ?? []).find((p) => p.name.toLowerCase() === name.toLowerCase())?.id ?? null
@@ -30,8 +56,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const body = await request.json()
     const { phases, partialPhaseUpdate, status, name, description, project, applicant, priority } = body
 
-    // notes/checklist stub — not supported in backend
-    if (partialPhaseUpdate) {
+    // discovery form save
+    if (partialPhaseUpdate && Array.isArray(phases) && phases.length > 0) {
+      const phase = phases[0]
+      if (phase?.discoveryData && phase.id) {
+        const dto = mapDiscoveryToBackend(phase.discoveryData)
+        await apiClient.patch(`/tasks/${id}/subtasks/${phase.id}/discovery`, dto)
+      }
       return NextResponse.json({ success: true })
     }
 

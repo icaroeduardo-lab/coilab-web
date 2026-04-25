@@ -221,6 +221,8 @@ export default function DesignManager({
           description: figmaDescription,
           figmaToken: figmaToken.trim() || undefined,
           taskNumber: taskNumber || undefined,
+          taskId,
+          subTaskId,
         }),
       })
 

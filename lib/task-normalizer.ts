@@ -41,6 +41,36 @@ export function denormalizePriority(priority: string): string {
     : priority.toLowerCase()
 }
 
+const LEVEL_REVERSE: Record<string, string> = { Alta: "alta", Média: "media", Baixa: "baixa" }
+const FREQ_REVERSE: Record<string, string> = {
+  Diária: "diario", Semanal: "semanal", Mensal: "mensal", Eventual: "eventual",
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapBackendDiscovery(form: any) {
+  if (!form) return undefined
+  return {
+    projectName: form.projectName ?? "",
+    sector: "",
+    complexity: form.complexity === "Alta" ? "complex" : "small",
+    flow: "interno",
+    problemSummary: form.summary ?? "",
+    userPains: form.painPoints ?? "",
+    frequency: (FREQ_REVERSE[form.frequency] ?? "eventual") as "diario" | "semanal" | "mensal" | "eventual",
+    currentProcess: form.currentProcess ?? "",
+    inactionCost: form.inactionCost ?? "",
+    volume: form.volume ?? "",
+    averageTime: form.avgTime ?? "",
+    humanDependency: (LEVEL_REVERSE[form.humanDependency] ?? "media") as "alta" | "media" | "baixa",
+    reworkRate: form.rework !== "N/A" ? (form.rework ?? "") : "",
+    previousAttempts: form.previousAttempts !== "N/A" ? (form.previousAttempts ?? "") : "",
+    benchmark: form.benchmark !== "N/A" ? (form.benchmark ?? "") : "",
+    institutionalPriority: (LEVEL_REVERSE[form.institutionalPriority] ?? "media") as "alta" | "media" | "baixa",
+    aiPotential: "medio" as "alto" | "medio" | "baixo",
+    technicalOpinion: form.technicalOpinion ?? "",
+  }
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function normalizeSubTask(st: any) {
   return {
@@ -57,6 +87,7 @@ export function normalizeSubTask(st: any) {
     notes: "",
     checklist: [] as { id: string; label: string; completed: boolean }[],
     designs: (st.designs ?? []) as { id: string; url: string; title: string; description: string }[],
+    discoveryData: mapBackendDiscovery(st.discoveryForm),
   }
 }
 
