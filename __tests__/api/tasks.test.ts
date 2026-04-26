@@ -118,6 +118,51 @@ describe("DELETE /api/tasks/:id", () => {
   })
 })
 
+describe("GET /api/tasks/project/:projectId", () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it("returns normalized tasks for project (array response)", async () => {
+    const { GET } = await import("@/app/api/tasks/project/[projectId]/route")
+    mockGet.mockResolvedValue([backendTask])
+    const res = await GET(new Request("http://localhost"), {
+      params: Promise.resolve({ projectId: "proj-1" }),
+    })
+    expect(mockGet).toHaveBeenCalledWith("/tasks/project/proj-1")
+    const body = await res.json()
+    expect(body).toHaveLength(1)
+    expect(body[0].project).toBe("Portal")
+    expect(body[0].phases[0].type).toBe("discovery")
+  })
+
+  it("handles paginated response { data: [] }", async () => {
+    const { GET } = await import("@/app/api/tasks/project/[projectId]/route")
+    mockGet.mockResolvedValue({ data: [backendTask] })
+    const res = await GET(new Request("http://localhost"), {
+      params: Promise.resolve({ projectId: "proj-1" }),
+    })
+    const body = await res.json()
+    expect(body).toHaveLength(1)
+  })
+
+  it("returns empty array when backend returns no data", async () => {
+    const { GET } = await import("@/app/api/tasks/project/[projectId]/route")
+    mockGet.mockResolvedValue({})
+    const res = await GET(new Request("http://localhost"), {
+      params: Promise.resolve({ projectId: "proj-1" }),
+    })
+    expect(await res.json()).toEqual([])
+  })
+
+  it("returns 500 on error", async () => {
+    const { GET } = await import("@/app/api/tasks/project/[projectId]/route")
+    mockGet.mockRejectedValue(new Error("API 503"))
+    const res = await GET(new Request("http://localhost"), {
+      params: Promise.resolve({ projectId: "proj-1" }),
+    })
+    expect(res.status).toBe(500)
+  })
+})
+
 describe("POST /api/tasks", () => {
   beforeEach(() => vi.clearAllMocks())
 

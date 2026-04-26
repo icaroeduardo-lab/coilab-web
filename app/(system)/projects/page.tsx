@@ -54,7 +54,7 @@ const columns: ColumnDef<Project>[] = [
     header: "Nº",
     cell: ({ row }) => (
       <span className="text-xs font-mono text-muted-foreground whitespace-nowrap">
-        {row.getValue("projectNumber") ? `#${row.getValue("projectNumber")}` : "—"}
+        {row.getValue("projectNumber") ?? "—"}
       </span>
     ),
   },

@@ -456,19 +456,20 @@ export default function Page() {
       setIsCreateDialogOpen(false)
 
       if (!response.ok) {
-        throw new Error("Erro ao salvar a tarefa")
+        const body = await response.json().catch(() => ({}))
+        throw new Error(body.error || body.message || "Erro ao salvar a tarefa")
       }
 
       form.reset()
       setPhaseDates({})
       setFeedback({ type: "success", message: "Tarefa criada com sucesso" })
       mutate("/api/tasks")
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erro no formulário:", error)
       setIsCreateDialogOpen(false)
       setFeedback({
         type: "error",
-        message: "Ocorreu um erro ao criar a tarefa. Tente novamente.",
+        message: error.message || "Ocorreu um erro ao criar a tarefa. Tente novamente.",
       })
     }
   }
