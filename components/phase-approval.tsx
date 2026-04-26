@@ -1,10 +1,12 @@
 "use client"
 
 import { useState } from "react"
+import { useSession } from "next-auth/react"
 import useSWR from "swr"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { CheckCircle2, XCircle, Clock, ChevronDown, ChevronUp, User } from "lucide-react"
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
+import { CheckCircle2, XCircle, Clock, ChevronDown, ChevronUp } from "lucide-react"
 
 type Approval = {
   id: string
@@ -13,6 +15,7 @@ type Approval = {
   status: "approved" | "rejected"
   comment: string
   approvedBy: string
+  approvedByImage?: string | null
   createdAt: string
 }
 
@@ -26,6 +29,30 @@ function fmtDateTime(iso: string) {
     hour: "2-digit",
     minute: "2-digit",
   })
+}
+
+function getInitials(name: string) {
+  if (!name || name === "—") return "?"
+  return name
+    .split(" ")
+    .slice(0, 2)
+    .map((w) => w[0])
+    .join("")
+    .toUpperCase()
+}
+
+function UserAvatar({ name, image }: { name: string; image?: string | null }) {
+  return (
+    <div className="relative group/ua">
+      <Avatar size="sm" className="h-5 w-5 cursor-default">
+        {image && <AvatarImage src={image} alt={name} />}
+        <AvatarFallback className="text-[9px]">{getInitials(name)}</AvatarFallback>
+      </Avatar>
+      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 bg-popover text-popover-foreground border text-xs rounded shadow-md whitespace-nowrap opacity-0 group-hover/ua:opacity-100 pointer-events-none transition-opacity z-50">
+        {name === "—" ? "Usuário desconhecido" : name}
+      </div>
+    </div>
+  )
 }
 
 export function PhaseApproval({
@@ -43,6 +70,7 @@ export function PhaseApproval({
     `/api/approvals?taskId=${taskId}&phaseId=${phaseId}`,
     fetcher
   )
+  const { data: session } = useSession()
 
   const [showHistory, setShowHistory] = useState(false)
   const [action, setAction] = useState<"approve" | "reject" | null>(null)
@@ -71,6 +99,8 @@ export function PhaseApproval({
           phaseId,
           status: action === "approve" ? "approved" : "rejected",
           comment: comment.trim(),
+          approvedBy: session?.user?.name ?? undefined,
+          approvedByImage: session?.user?.image ?? undefined,
         }),
       })
 
@@ -80,7 +110,8 @@ export function PhaseApproval({
         return
       }
 
-      await mutate()
+      const newApproval: Approval = await res.json()
+      await mutate((current) => [newApproval, ...(current ?? [])], { revalidate: false })
       setAction(null)
       setComment("")
       setCommentError("")
@@ -133,10 +164,10 @@ export function PhaseApproval({
         <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
           <p className="font-medium mb-0.5">Motivo da reprovação:</p>
           <p className="whitespace-pre-wrap">{latestApproval.comment}</p>
-          <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
-            <User className="h-3 w-3" />
-            {latestApproval.approvedBy} · {fmtDateTime(latestApproval.createdAt)}
-          </p>
+          <div className="text-xs text-red-500 mt-1 flex items-center gap-1.5">
+            <UserAvatar name={latestApproval.approvedBy} image={latestApproval.approvedByImage} />
+            {fmtDateTime(latestApproval.createdAt)}
+          </div>
         </div>
       )}
 
@@ -154,6 +185,7 @@ export function PhaseApproval({
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5 flex-wrap">
+                  <UserAvatar name={item.approvedBy} image={item.approvedByImage} />
                   <span className="font-medium">{item.approvedBy}</span>
                   <span className="text-muted-foreground">
                     {item.status === "approved" ? "aprovou" : "reprovou"}
@@ -169,7 +201,7 @@ export function PhaseApproval({
         </div>
       )}
 
-      {/* Action buttons — only show if no decision has been made yet */}
+      {/* Action buttons */}
       {!isDecided && (
         <>
           {action === null ? (
@@ -246,7 +278,7 @@ export function PhaseApproval({
 
       {isApproved && latestApproval && (
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground border-t pt-3">
-          <User className="h-3 w-3" />
+          <UserAvatar name={latestApproval.approvedBy} image={latestApproval.approvedByImage} />
           Aprovado por <span className="font-medium">{latestApproval.approvedBy}</span>
           em {fmtDateTime(latestApproval.createdAt)}
         </div>

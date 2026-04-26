@@ -2,29 +2,24 @@ import { NextResponse } from "next/server"
 import { apiClient } from "@/lib/api-client"
 import { normalizeTask, denormalizePriority, phaseIdToSubTaskType } from "@/lib/task-normalizer"
 
-const LEVEL_MAP: Record<string, string> = { alta: "Alta", media: "Média", baixa: "Baixa" }
-const FREQ_MAP: Record<string, string> = {
-  diario: "Diária", semanal: "Semanal", mensal: "Mensal", eventual: "Eventual",
-}
-
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapDiscoveryToBackend(d: any): Record<string, string | undefined> {
   return {
     projectName: d.projectName || undefined,
-    summary: d.problemSummary || undefined,
-    painPoints: d.userPains || undefined,
-    frequency: FREQ_MAP[d.frequency] ?? undefined,
+    complexity: d.complexity || undefined,
+    summary: d.summary || undefined,
+    painPoints: d.painPoints || undefined,
+    frequency: d.frequency || undefined,
     currentProcess: d.currentProcess || undefined,
     inactionCost: d.inactionCost || undefined,
     volume: d.volume || undefined,
-    avgTime: d.averageTime || undefined,
-    humanDependency: LEVEL_MAP[d.humanDependency] ?? undefined,
-    rework: d.reworkRate || (d.complexity === "small" ? "N/A" : undefined),
-    previousAttempts: d.previousAttempts || (d.complexity === "small" ? "N/A" : undefined),
-    benchmark: d.benchmark || (d.complexity === "small" ? "N/A" : undefined),
-    institutionalPriority: LEVEL_MAP[d.institutionalPriority] ?? undefined,
+    avgTime: d.avgTime || undefined,
+    humanDependency: d.humanDependency || undefined,
+    rework: d.rework || undefined,
+    previousAttempts: d.previousAttempts || undefined,
+    benchmark: d.benchmark || undefined,
+    institutionalPriority: d.institutionalPriority || undefined,
     technicalOpinion: d.technicalOpinion || undefined,
-    complexity: d.complexity === "complex" ? "Alta" : "Baixa",
   }
 }
 
@@ -68,8 +63,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     // phases array → add new subtasks / remove disabled ones
     if (phases && !name && !description && !project && !applicant && !priority && !status) {
-      const current = await apiClient.get<{ subTasks: { id: string; type: string }[] }>(`/tasks/${id}`)
-      const currentTypes = new Set((current.subTasks ?? []).map((s) => s.type.toLowerCase()))
+      const current = await apiClient.get<{ subTasks: { id: string; type: string; status: string }[] }>(`/tasks/${id}`)
+      const currentTypes = new Set(
+        (current.subTasks ?? [])
+          .filter((s) => s.status !== "Reprovado" && s.status !== "Cancelado")
+          .map((s) => s.type.toLowerCase())
+      )
 
       const removedPhases = (phases as { id: string; enabled: boolean }[]).filter((p) => !p.enabled)
       if (removedPhases.length > 0) {

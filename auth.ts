@@ -15,14 +15,44 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     signIn: "/login",
   },
   callbacks: {
-    async jwt({ token, account }) {
+    async jwt({ token, account, profile }) {
       if (account?.access_token) {
         token.accessToken = account.access_token
+        try {
+          const apiUrl = process.env.API_URL ?? "http://localhost:3001/api"
+          const res = await fetch(`${apiUrl}/users/${token.sub}`, {
+            headers: { Authorization: `Bearer ${account.access_token}` },
+          })
+          if (res.ok) {
+            const user = await res.json()
+            token.backendId = user.id
+            token.backendImageUrl = user.imageUrl ?? null
+          } else if (res.status === 404) {
+            const imageUrl = (profile as any)?.picture ?? null
+            await fetch(`${apiUrl}/users/sync`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                cognitoSub: token.sub,
+                name: token.name,
+                imageUrl,
+              }),
+            })
+            token.backendId = token.sub as string
+            token.backendImageUrl = imageUrl
+          }
+        } catch {
+          // backend unreachable — proceed without enrichment
+        }
       }
       return token
     },
     async session({ session, token }) {
       session.accessToken = token.accessToken as string | undefined
+      session.user.id = (token.backendId ?? token.sub ?? "") as string
+      if (token.backendImageUrl) {
+        session.user.image = token.backendImageUrl
+      }
       return session
     },
   },

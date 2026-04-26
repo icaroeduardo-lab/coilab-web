@@ -8,6 +8,7 @@ type Approval = {
   status: "approved" | "rejected"
   comment: string
   approvedBy: string
+  approvedByImage?: string | null
   createdAt: string
 }
 
@@ -70,7 +71,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const { taskId, phaseId, status, comment } = await request.json()
+    const { taskId, phaseId, status, comment, approvedBy, approvedByImage } = await request.json()
 
     if (!taskId || !phaseId || !status) {
       return NextResponse.json(
@@ -99,7 +100,8 @@ export async function POST(request: Request) {
       phaseId,
       status,
       comment: comment?.trim() ?? "",
-      approvedBy: "—",
+      approvedBy: approvedBy ?? "—",
+      approvedByImage: approvedByImage ?? null,
       createdAt: new Date().toISOString(),
     }
     return NextResponse.json(approval)
