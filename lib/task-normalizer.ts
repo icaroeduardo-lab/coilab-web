@@ -41,38 +41,59 @@ export function denormalizePriority(priority: string): string {
     : priority.toLowerCase()
 }
 
-const LEVEL_REVERSE: Record<string, string> = { Alta: "alta", Média: "media", Baixa: "baixa" }
-const FREQ_REVERSE: Record<string, string> = {
-  Diária: "diario", Semanal: "semanal", Mensal: "mensal", Eventual: "eventual",
+export type DiscoveryFieldMeta = { userId: string; filledAt: string }
+export type DiscoveryMeta = Record<string, DiscoveryFieldMeta | null>
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function val(field: any): string {
+  if (!field) return ""
+  return typeof field === "object" ? (field.value ?? "") : field
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function mapBackendDiscovery(form: any) {
-  if (!form) return undefined
+function meta(field: any): DiscoveryFieldMeta | null {
+  if (!field || typeof field !== "object" || !field.userId) return null
+  return { userId: field.userId, filledAt: field.filledAt ?? "" }
+}
+
+const DISCOVERY_FIELDS = [
+  "projectName","complexity","summary","painPoints","frequency",
+  "currentProcess","inactionCost","volume","avgTime","humanDependency",
+  "rework","previousAttempts","benchmark","institutionalPriority","technicalOpinion",
+] as const
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapBackendDiscovery(form: any): { data: ReturnType<typeof buildDiscoveryData>; meta: DiscoveryMeta } | null {
+  if (!form) return null
+  const m: DiscoveryMeta = {}
+  for (const key of DISCOVERY_FIELDS) m[key] = meta(form[key])
+  return { data: buildDiscoveryData(form), meta: m }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function buildDiscoveryData(form: any) {
   return {
-    projectName: form.projectName ?? "",
-    sector: "",
-    complexity: form.complexity === "Alta" ? "complex" : "small",
-    flow: "interno",
-    problemSummary: form.summary ?? "",
-    userPains: form.painPoints ?? "",
-    frequency: (FREQ_REVERSE[form.frequency] ?? "eventual") as "diario" | "semanal" | "mensal" | "eventual",
-    currentProcess: form.currentProcess ?? "",
-    inactionCost: form.inactionCost ?? "",
-    volume: form.volume ?? "",
-    averageTime: form.avgTime ?? "",
-    humanDependency: (LEVEL_REVERSE[form.humanDependency] ?? "media") as "alta" | "media" | "baixa",
-    reworkRate: form.rework !== "N/A" ? (form.rework ?? "") : "",
-    previousAttempts: form.previousAttempts !== "N/A" ? (form.previousAttempts ?? "") : "",
-    benchmark: form.benchmark !== "N/A" ? (form.benchmark ?? "") : "",
-    institutionalPriority: (LEVEL_REVERSE[form.institutionalPriority] ?? "media") as "alta" | "media" | "baixa",
-    aiPotential: "medio" as "alto" | "medio" | "baixo",
-    technicalOpinion: form.technicalOpinion ?? "",
+    projectName: val(form.projectName),
+    complexity: (val(form.complexity) || "Baixa") as "Alta" | "Baixa",
+    summary: val(form.summary),
+    painPoints: val(form.painPoints),
+    frequency: (val(form.frequency) || "Eventual") as "Diária" | "Semanal" | "Mensal" | "Eventual",
+    currentProcess: val(form.currentProcess),
+    inactionCost: val(form.inactionCost),
+    volume: val(form.volume),
+    avgTime: val(form.avgTime),
+    humanDependency: (val(form.humanDependency) || "Média") as "Alta" | "Média" | "Baixa",
+    rework: val(form.rework),
+    previousAttempts: val(form.previousAttempts),
+    benchmark: val(form.benchmark),
+    institutionalPriority: (val(form.institutionalPriority) || "Média") as "Alta" | "Média" | "Baixa",
+    technicalOpinion: val(form.technicalOpinion),
   }
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function normalizeSubTask(st: any) {
+  const discovery = mapBackendDiscovery(st.discoveryForm)
   return {
     id: st.id,
     type: st.type.toLowerCase() as string,
@@ -87,7 +108,8 @@ export function normalizeSubTask(st: any) {
     notes: "",
     checklist: [] as { id: string; label: string; completed: boolean }[],
     designs: (st.designs ?? []) as { id: string; url: string; title: string; description: string }[],
-    discoveryData: mapBackendDiscovery(st.discoveryForm),
+    discoveryData: discovery?.data,
+    discoveryMeta: discovery?.meta,
   }
 }
 

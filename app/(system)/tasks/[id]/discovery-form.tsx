@@ -1,11 +1,13 @@
 "use client"
 
 import { useState } from "react"
+import { useSession } from "next-auth/react"
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import {
   Accordion,
   AccordionContent,
@@ -16,6 +18,9 @@ import { Label } from "@/components/ui/label"
 import { Loader2, CheckCircle2, Save, Calendar, PlayCircle, XCircle } from "lucide-react"
 import useSWR from "swr"
 import { toast } from "sonner"
+
+type FieldMeta = { userId: string; filledAt: string }
+type DiscoveryMeta = Record<string, FieldMeta | null>
 
 type Phase = {
   id: string
@@ -90,17 +95,61 @@ const draftSchema = baseSchema.partial()
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
+function getInitials(name: string) {
+  if (!name || name === "—") return "?"
+  return name.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase()
+}
+
+function fmtDateTime(iso: string) {
+  if (!iso) return ""
+  return new Date(iso).toLocaleString("pt-BR", {
+    day: "2-digit", month: "2-digit", year: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  })
+}
+
+function FieldAuthor({ fieldMeta }: { fieldMeta: FieldMeta | null | undefined }) {
+  const { data: session } = useSession()
+  const isMe = !!fieldMeta && session?.user?.id === fieldMeta.userId
+  const { data: backendUser } = useSWR<{ name: string; imageUrl?: string | null }>(
+    fieldMeta && !isMe ? `/api/users/${fieldMeta.userId}` : null,
+    fetcher
+  )
+
+  if (!fieldMeta) return null
+
+  const name = isMe ? (session?.user?.name ?? "—") : (backendUser?.name ?? "...")
+  const image = isMe ? (session?.user?.image ?? null) : (backendUser?.imageUrl ?? null)
+
+  return (
+    <div className="flex items-center gap-1 mt-1 pl-3">
+      <div className="relative group/fa">
+        <Avatar size="sm" className="h-4 w-4 cursor-default">
+          {image && <AvatarImage src={image} alt={name} />}
+          <AvatarFallback className="text-[7px]">{getInitials(name)}</AvatarFallback>
+        </Avatar>
+        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 bg-popover text-popover-foreground border text-xs rounded shadow-md whitespace-nowrap opacity-0 group-hover/fa:opacity-100 pointer-events-none transition-opacity z-50">
+          {name}
+        </div>
+      </div>
+      <span className="text-[11px] text-muted-foreground">{name} · {fmtDateTime(fieldMeta.filledAt)}</span>
+    </div>
+  )
+}
+
 function DiscoveryForm({
   phase,
   taskId,
   initialData,
   taskData: externalTaskData,
+  discoveryMeta,
   onSaved,
 }: {
   phase: Phase
   taskId: string
   initialData?: DiscoveryData
   taskData?: Task
+  discoveryMeta?: DiscoveryMeta
   onSaved: (completed?: boolean) => void
 }) {
   const [isSaving, setIsSaving] = useState(false)
@@ -108,8 +157,17 @@ function DiscoveryForm({
   const [isCancelOpen, setIsCancelOpen] = useState(false)
   const [cancelReason, setCancelReason] = useState("")
   const [isCancelling, setIsCancelling] = useState(false)
+  const [localMeta, setLocalMeta] = useState<DiscoveryMeta>(() => discoveryMeta || {})
+  const { data: session } = useSession()
   const { data: fetchedTaskData, mutate } = useSWR<Task>(`/api/tasks/${taskId}`, fetcher)
   const taskData = externalTaskData || fetchedTaskData
+
+  const markField = (fieldName: string, value: unknown) => {
+    if (!value || (typeof value === "string" && !value.trim())) return
+    const userId = session?.user?.id
+    if (!userId) return
+    setLocalMeta(prev => ({ ...prev, [fieldName]: { userId, filledAt: new Date().toISOString() } }))
+  }
 
   const defaultComplexity = initialData?.complexity || "Baixa"
   const schema = defaultComplexity === "Alta" ? complexSchema : baseSchema
@@ -123,12 +181,14 @@ function DiscoveryForm({
     formState: { errors },
   } = useForm({
     resolver: zodResolver(schema) as any,
-    defaultValues: initialData || {
-      projectName: taskData?.name || "",
-      complexity: "Baixa" as const,
-      humanDependency: "Média" as const,
-      frequency: "Eventual" as const,
-      institutionalPriority: "Média" as const,
+    defaultValues: {
+      ...(initialData || {
+        complexity: "Baixa" as const,
+        humanDependency: "Média" as const,
+        frequency: "Eventual" as const,
+        institutionalPriority: "Média" as const,
+      }),
+      projectName: taskData?.name || initialData?.projectName || "",
     },
   })
 
@@ -318,11 +378,11 @@ function DiscoveryForm({
           render={({ field }) => (
             <div className="flex gap-4">
               <div className="flex items-center space-x-1.5">
-                <input type="radio" id="complexity-small" value="Baixa" checked={field.value === "Baixa"} onChange={() => field.onChange("Baixa")} className="cursor-pointer" />
+                <input type="radio" id="complexity-small" value="Baixa" checked={field.value === "Baixa"} onChange={() => { field.onChange("Baixa"); markField("complexity", "Baixa") }} className="cursor-pointer" />
                 <Label htmlFor="complexity-small" className="font-normal cursor-pointer">Pequena</Label>
               </div>
               <div className="flex items-center space-x-1.5">
-                <input type="radio" id="complexity-complex" value="Alta" checked={field.value === "Alta"} onChange={() => field.onChange("Alta")} className="cursor-pointer" />
+                <input type="radio" id="complexity-complex" value="Alta" checked={field.value === "Alta"} onChange={() => { field.onChange("Alta"); markField("complexity", "Alta") }} className="cursor-pointer" />
                 <Label htmlFor="complexity-complex" className="font-normal cursor-pointer">Média/Complexa</Label>
               </div>
             </div>
@@ -331,6 +391,7 @@ function DiscoveryForm({
         {errors.complexity && (
           <p className="text-xs text-destructive mt-1">{errors.complexity.message as string}</p>
         )}
+        <FieldAuthor fieldMeta={localMeta.complexity} />
       </div>
 
       {/* Identificação e Triagem */}
@@ -338,15 +399,12 @@ function DiscoveryForm({
         <h3 className="text-sm font-semibold mb-4">1. Identificação e Triagem</h3>
         <div className="space-y-4">
           <div>
-            <label className="text-sm font-medium block mb-1">Nome do Projeto *</label>
+            <label className="text-sm font-medium block mb-1">Nome do Projeto</label>
             <input
               {...register("projectName")}
-              placeholder="Digite o nome do projeto"
-              className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              disabled
+              className="w-full px-3 py-2 border border-input rounded-md bg-muted text-sm text-muted-foreground cursor-not-allowed"
             />
-            {errors.projectName && (
-              <p className="text-xs text-destructive mt-1">{errors.projectName.message as string}</p>
-            )}
           </div>
 
           <div>
@@ -385,24 +443,28 @@ function DiscoveryForm({
             <label className="text-sm font-medium block mb-1">Resumo em 1 Frase *</label>
             <input
               {...register("summary")}
+              onBlur={(e) => markField("summary", e.target.value)}
               placeholder="Resuma o problema em uma frase"
               className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
             />
             {errors.summary && (
               <p className="text-xs text-destructive mt-1">{errors.summary.message as string}</p>
             )}
+            <FieldAuthor fieldMeta={localMeta.summary} />
           </div>
 
           <div>
             <label className="text-sm font-medium block mb-1">Dores do Usuário *</label>
             <textarea
               {...register("painPoints")}
+              onBlur={(e) => markField("painPoints", e.target.value)}
               placeholder="Descreva as dores do usuário"
               className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary min-h-20"
             />
             {errors.painPoints && (
               <p className="text-xs text-destructive mt-1">{errors.painPoints.message as string}</p>
             )}
+            <FieldAuthor fieldMeta={localMeta.painPoints} />
           </div>
 
           <div>
@@ -419,37 +481,42 @@ function DiscoveryForm({
                     { value: "Eventual", label: "Eventual" },
                   ].map(({ value, label }) => (
                     <div key={value} className="flex items-center space-x-1.5">
-                      <input type="radio" id={`frequency-${value}`} value={value} checked={field.value === value} onChange={() => field.onChange(value)} className="cursor-pointer" />
+                      <input type="radio" id={`frequency-${value}`} value={value} checked={field.value === value} onChange={() => { field.onChange(value); markField("frequency", value) }} className="cursor-pointer" />
                       <Label htmlFor={`frequency-${value}`} className="font-normal cursor-pointer">{label}</Label>
                     </div>
                   ))}
                 </div>
               )}
             />
+            <FieldAuthor fieldMeta={localMeta.frequency} />
           </div>
 
           <div>
             <label className="text-sm font-medium block mb-1">Passo a Passo Atual *</label>
             <textarea
               {...register("currentProcess")}
+              onBlur={(e) => markField("currentProcess", e.target.value)}
               placeholder="Descreva o processo atual"
               className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary min-h-20"
             />
             {errors.currentProcess && (
               <p className="text-xs text-destructive mt-1">{errors.currentProcess.message as string}</p>
             )}
+            <FieldAuthor fieldMeta={localMeta.currentProcess} />
           </div>
 
           <div>
             <label className="text-sm font-medium block mb-1">Custo da Inação *</label>
             <textarea
               {...register("inactionCost")}
+              onBlur={(e) => markField("inactionCost", e.target.value)}
               placeholder="Qual é o custo de não resolver?"
               className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary min-h-20"
             />
             {errors.inactionCost && (
               <p className="text-xs text-destructive mt-1">{errors.inactionCost.message as string}</p>
             )}
+            <FieldAuthor fieldMeta={localMeta.inactionCost} />
           </div>
         </div>
       </div>
@@ -462,24 +529,28 @@ function DiscoveryForm({
             <label className="text-sm font-medium block mb-1">Volume *</label>
             <input
               {...register("volume")}
+              onBlur={(e) => markField("volume", e.target.value)}
               placeholder="Ex: 1000 registros/mês"
               className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
             />
             {errors.volume && (
               <p className="text-xs text-destructive mt-1">{errors.volume.message as string}</p>
             )}
+            <FieldAuthor fieldMeta={localMeta.volume} />
           </div>
 
           <div>
             <label className="text-sm font-medium block mb-1">Tempo Médio *</label>
             <input
               {...register("avgTime")}
+              onBlur={(e) => markField("avgTime", e.target.value)}
               placeholder="Ex: 2 horas por processo"
               className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
             />
             {errors.avgTime && (
               <p className="text-xs text-destructive mt-1">{errors.avgTime.message as string}</p>
             )}
+            <FieldAuthor fieldMeta={localMeta.avgTime} />
           </div>
 
           <div>
@@ -495,13 +566,14 @@ function DiscoveryForm({
                     { value: "Baixa", label: "Baixa" },
                   ].map(({ value, label }) => (
                     <div key={value} className="flex items-center space-x-1.5">
-                      <input type="radio" id={`humanDependency-${value}`} value={value} checked={field.value === value} onChange={() => field.onChange(value)} className="cursor-pointer" />
+                      <input type="radio" id={`humanDependency-${value}`} value={value} checked={field.value === value} onChange={() => { field.onChange(value); markField("humanDependency", value) }} className="cursor-pointer" />
                       <Label htmlFor={`humanDependency-${value}`} className="font-normal cursor-pointer">{label}</Label>
                     </div>
                   ))}
                 </div>
               )}
             />
+            <FieldAuthor fieldMeta={localMeta.humanDependency} />
           </div>
 
           {complexity === "Alta" && (
@@ -509,12 +581,14 @@ function DiscoveryForm({
               <label className="text-sm font-medium block mb-1">Retrabalho/Erro *</label>
               <input
                 {...register("rework")}
+                onBlur={(e) => markField("rework", e.target.value)}
                 placeholder="Qual é a taxa de retrabalho/erro?"
                 className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />
               {errors.rework && (
                 <p className="text-xs text-destructive mt-1">{errors.rework.message as string}</p>
               )}
+              <FieldAuthor fieldMeta={localMeta.rework} />
             </div>
           )}
         </div>
@@ -529,24 +603,28 @@ function DiscoveryForm({
               <label className="text-sm font-medium block mb-1">Tentativas Anteriores *</label>
               <textarea
                 {...register("previousAttempts")}
+                onBlur={(e) => markField("previousAttempts", e.target.value)}
                 placeholder="Descreva tentativas anteriores para resolver este problema"
                 className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary min-h-20"
               />
               {errors.previousAttempts && (
                 <p className="text-xs text-destructive mt-1">{errors.previousAttempts.message as string}</p>
               )}
+              <FieldAuthor fieldMeta={localMeta.previousAttempts} />
             </div>
 
             <div>
               <label className="text-sm font-medium block mb-1">Benchmark *</label>
               <textarea
                 {...register("benchmark")}
+                onBlur={(e) => markField("benchmark", e.target.value)}
                 placeholder="Como outras organizações resolvem este problema?"
                 className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary min-h-20"
               />
               {errors.benchmark && (
                 <p className="text-xs text-destructive mt-1">{errors.benchmark.message as string}</p>
               )}
+              <FieldAuthor fieldMeta={localMeta.benchmark} />
             </div>
           </div>
         </div>
@@ -569,25 +647,28 @@ function DiscoveryForm({
                     { value: "Baixa", label: "Baixa" },
                   ].map(({ value, label }) => (
                     <div key={value} className="flex items-center space-x-1.5">
-                      <input type="radio" id={`institutionalPriority-${value}`} value={value} checked={field.value === value} onChange={() => field.onChange(value)} className="cursor-pointer" />
+                      <input type="radio" id={`institutionalPriority-${value}`} value={value} checked={field.value === value} onChange={() => { field.onChange(value); markField("institutionalPriority", value) }} className="cursor-pointer" />
                       <Label htmlFor={`institutionalPriority-${value}`} className="font-normal cursor-pointer">{label}</Label>
                     </div>
                   ))}
                 </div>
               )}
             />
+            <FieldAuthor fieldMeta={localMeta.institutionalPriority} />
           </div>
 
           <div>
             <label className="text-sm font-medium block mb-1">Parecer Técnico *</label>
             <textarea
               {...register("technicalOpinion")}
+              onBlur={(e) => markField("technicalOpinion", e.target.value)}
               placeholder="Qual é seu parecer técnico sobre este problema?"
               className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary min-h-20"
             />
             {errors.technicalOpinion && (
               <p className="text-xs text-destructive mt-1">{errors.technicalOpinion.message as string}</p>
             )}
+            <FieldAuthor fieldMeta={localMeta.technicalOpinion} />
           </div>
         </div>
       </div>
@@ -697,10 +778,12 @@ export function DiscoveryPhaseTab({
   phase,
   taskId,
   onPhaseUpdate,
+  discoveryMeta,
 }: {
   phase: Phase
   taskId: string
   onPhaseUpdate: (phases: Phase[]) => void
+  discoveryMeta?: DiscoveryMeta
 }) {
   const { data: taskData, mutate } = useSWR<Task>(`/api/tasks/${taskId}`, fetcher)
   const [isStarting, setIsStarting] = useState(false)
@@ -758,6 +841,7 @@ export function DiscoveryPhaseTab({
       phase={phase}
       taskId={taskId}
       initialData={phase.discoveryData}
+      discoveryMeta={discoveryMeta}
       taskData={taskData}
       onSaved={() => { mutate(); onPhaseUpdate([]) }}
     />

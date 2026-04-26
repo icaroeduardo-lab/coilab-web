@@ -37,6 +37,7 @@ type Phase = {
   checklist: { id: string; label: string; completed: boolean }[]
   designs?: Design[]
   discoveryData?: any
+  discoveryMeta?: Record<string, { userId: string; filledAt: string } | null>
 }
 
 type Task = {
@@ -1239,6 +1240,7 @@ export default function TaskDetailPage() {
                         phase={phase}
                         taskId={id}
                         onPhaseUpdate={setPhases}
+                        discoveryMeta={phase.discoveryMeta}
                       />
                     </div>
                   ) : (phase.type === "design" || phase.id.startsWith("design")) ? (
