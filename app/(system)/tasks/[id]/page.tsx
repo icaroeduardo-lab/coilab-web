@@ -812,6 +812,7 @@ function DesignPhaseTab({
         subTaskId={phase.id}
         taskNumber={taskNumber}
         initialDesigns={phase.designs ?? []}
+        readOnly={["completed", "approved", "rejected"].includes(phase.status)}
       />
     </div>
   )

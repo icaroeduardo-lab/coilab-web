@@ -18,6 +18,7 @@ interface DesignGalleryProps {
   onSelectDesign: (design: Design) => void
   onRemoveDesign: (id: string) => Promise<void>
   isLoading?: boolean
+  readOnly?: boolean
 }
 
 export default function DesignGallery({
@@ -25,6 +26,7 @@ export default function DesignGallery({
   onSelectDesign,
   onRemoveDesign,
   isLoading,
+  readOnly = false,
 }: DesignGalleryProps) {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -64,13 +66,17 @@ export default function DesignGallery({
           >
             {/* Image Container */}
             <div className="relative aspect-video w-full overflow-hidden bg-muted">
-              <Image
-                src={design.url}
-                alt={design.description}
-                fill
-                className="object-contain"
-                priority={false}
-              />
+              {design.url ? (
+                <Image
+                  src={design.url}
+                  alt={design.description}
+                  fill
+                  className="object-contain"
+                  priority={false}
+                />
+              ) : (
+                <div className="flex h-full items-center justify-center text-muted-foreground text-sm">Sem imagem</div>
+              )}
 
               {/* Overlay Actions */}
               <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/0 transition-colors duration-200 group-hover:bg-black/20">
@@ -108,20 +114,22 @@ export default function DesignGallery({
                 >
                   <Download className="h-4 w-4" />
                 </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setDeleteConfirm(design.id)}
-                  disabled={isLoading}
-                  className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                  title="Deletar imagem"
-                >
-                  {isLoading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Trash2 className="h-4 w-4" />
-                  )}
-                </Button>
+                {!readOnly && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setDeleteConfirm(design.id)}
+                    disabled={isLoading}
+                    className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                    title="Deletar imagem"
+                  >
+                    {isLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-4 w-4" />
+                    )}
+                  </Button>
+                )}
               </div>
             </div>
           </div>

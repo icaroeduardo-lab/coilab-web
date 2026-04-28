@@ -29,6 +29,7 @@ interface DesignManagerProps {
   taskNumber?: string
   initialDesigns?: Design[]
   onSave?: (designs: Design[]) => Promise<void>
+  readOnly?: boolean
 }
 
 export default function DesignManager({
@@ -37,6 +38,7 @@ export default function DesignManager({
   taskNumber,
   initialDesigns = [],
   onSave,
+  readOnly = false,
 }: DesignManagerProps) {
   const [designs, setDesigns] = useState<Design[]>(initialDesigns)
   const [selectedDesign, setSelectedDesign] = useState<Design | null>(null)
@@ -284,16 +286,18 @@ export default function DesignManager({
       </div>
 
       {/* New Image Button */}
-      <Button
-        onClick={() => {
-          resetForm()
-          setShowDialog(true)
-        }}
-        className="gap-2"
-      >
-        <Plus className="h-4 w-4" />
-        Nova Imagem
-      </Button>
+      {!readOnly && (
+        <Button
+          onClick={() => {
+            resetForm()
+            setShowDialog(true)
+          }}
+          className="gap-2"
+        >
+          <Plus className="h-4 w-4" />
+          Nova Imagem
+        </Button>
+      )}
 
       {/* Gallery or Empty State */}
       {designs.length === 0 ? (
@@ -314,6 +318,7 @@ export default function DesignManager({
           onSelectDesign={setSelectedDesign}
           onRemoveDesign={handleRemoveDesign}
           isLoading={isLoading}
+          readOnly={readOnly}
         />
       )}
 

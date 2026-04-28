@@ -107,7 +107,7 @@ export function normalizeSubTask(st: any) {
     reason: st.reason ?? undefined,
     notes: "",
     checklist: [] as { id: string; label: string; completed: boolean }[],
-    designs: (st.designs ?? []) as { id: string; url: string; title: string; description: string }[],
+    designs: (st.designs ?? []).map((d: any) => ({ ...d, url: d.url ?? d.urlImage ?? "" })),
     discoveryData: discovery?.data,
     discoveryMeta: discovery?.meta,
   }

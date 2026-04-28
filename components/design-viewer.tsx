@@ -33,13 +33,17 @@ export default function DesignViewer({ design, onClose }: DesignViewerProps) {
 
         {/* Image Container */}
         <div className="relative h-full w-full max-w-5xl max-h-[80vh]">
-          <Image
-            src={design.url}
-            alt={design.description}
-            fill
-            className="object-contain"
-            priority
-          />
+          {design.url ? (
+            <Image
+              src={design.url}
+              alt={design.description}
+              fill
+              className="object-contain"
+              priority
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center text-muted-foreground text-sm">Sem imagem</div>
+          )}
         </div>
 
         {/* Footer - Description */}

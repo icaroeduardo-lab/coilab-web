@@ -395,9 +395,9 @@ export default function Page() {
 
   const tasks = Array.isArray(tasksData) ? tasksData : []
 
-  const applicants = Array.isArray(applicantsData) ? applicantsData.map(a => ({ ...a, name: a.name.toUpperCase() })) : []
-  const projects = Array.isArray(projectsData) ? projectsData.map(p => ({ ...p, name: p.name.toUpperCase() })) : []
-  const flows = Array.isArray(flowsData) ? flowsData.map(f => ({ ...f, name: f.name.toUpperCase() })) : []
+  const applicants = Array.isArray(applicantsData) ? applicantsData.map(a => ({ ...a, name: a.name.toUpperCase() })).filter((a, i, arr) => arr.findIndex(x => x.name === a.name) === i) : []
+  const projects = Array.isArray(projectsData) ? projectsData.map(p => ({ ...p, name: p.name.toUpperCase() })).filter((p, i, arr) => arr.findIndex(x => x.name === p.name) === i) : []
+  const flows = Array.isArray(flowsData) ? flowsData.map(f => ({ ...f, name: f.name.toUpperCase() })).filter((f, i, arr) => arr.findIndex(x => x.name === f.name) === i) : []
   const DEFAULT_PHASES = [
     { id: "discovery", name: "Discovery" },
     { id: "design", name: "Design" },

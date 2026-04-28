@@ -143,6 +143,7 @@ function DiscoveryForm({
   initialData,
   taskData: externalTaskData,
   discoveryMeta,
+  readOnly = false,
   onSaved,
 }: {
   phase: Phase
@@ -150,6 +151,7 @@ function DiscoveryForm({
   initialData?: DiscoveryData
   taskData?: Task
   discoveryMeta?: DiscoveryMeta
+  readOnly?: boolean
   onSaved: (completed?: boolean) => void
 }) {
   const [isSaving, setIsSaving] = useState(false)
@@ -291,6 +293,7 @@ function DiscoveryForm({
 
   return (
     <form className="space-y-6">
+      <fieldset disabled={readOnly} className="contents">
       <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-lg bg-muted/40 border mb-2">
         <div className="flex flex-wrap gap-4 text-xs">
           <div className="flex items-center gap-1.5">
@@ -309,40 +312,42 @@ function DiscoveryForm({
             <span className="font-medium">{fmtDate(phase.completedAt)}</span>
           </div>
         </div>
-        <div className="flex gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={isSaving || isCompleting || isCancelling}
-            onClick={handleSaveDraft}
-            className="gap-2"
-          >
-            {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-            Salvar Rascunho
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={isSaving || isCompleting || isCancelling}
-            onClick={() => setIsCancelOpen(o => !o)}
-            className="gap-2 text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
-          >
-            <XCircle className="h-3.5 w-3.5" />
-            Cancelar
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            disabled={isSaving || isCompleting || isCancelling}
-            onClick={handleSubmit(handleFinalize)}
-            className="gap-2"
-          >
-            {isCompleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
-            Finalizar Discovery
-          </Button>
-        </div>
+        {!readOnly && (
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={isSaving || isCompleting || isCancelling}
+              onClick={handleSaveDraft}
+              className="gap-2"
+            >
+              {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+              Salvar Rascunho
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={isSaving || isCompleting || isCancelling}
+              onClick={() => setIsCancelOpen(o => !o)}
+              className="gap-2 text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
+            >
+              <XCircle className="h-3.5 w-3.5" />
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              disabled={isSaving || isCompleting || isCancelling}
+              onClick={handleSubmit(handleFinalize)}
+              className="gap-2"
+            >
+              {isCompleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+              Finalizar Discovery
+            </Button>
+          </div>
+        )}
       </div>
 
       {isCancelOpen && (
@@ -673,6 +678,7 @@ function DiscoveryForm({
         </div>
       </div>
 
+      </fieldset>
     </form>
   )
 }
@@ -836,6 +842,8 @@ export function DiscoveryPhaseTab({
     )
   }
 
+  const isLocked = ["completed", "approved", "rejected"].includes(phase.status)
+
   return (
     <DiscoveryForm
       phase={phase}
@@ -843,6 +851,7 @@ export function DiscoveryPhaseTab({
       initialData={phase.discoveryData}
       discoveryMeta={discoveryMeta}
       taskData={taskData}
+      readOnly={isLocked}
       onSaved={() => { mutate(); onPhaseUpdate([]) }}
     />
   )
