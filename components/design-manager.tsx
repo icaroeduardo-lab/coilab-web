@@ -25,16 +25,20 @@ export type Design = {
 
 interface DesignManagerProps {
   taskId: string
+  subTaskId?: string
   taskNumber?: string
   initialDesigns?: Design[]
   onSave?: (designs: Design[]) => Promise<void>
+  readOnly?: boolean
 }
 
 export default function DesignManager({
   taskId,
+  subTaskId,
   taskNumber,
   initialDesigns = [],
   onSave,
+  readOnly = false,
 }: DesignManagerProps) {
   const [designs, setDesigns] = useState<Design[]>(initialDesigns)
   const [selectedDesign, setSelectedDesign] = useState<Design | null>(null)
@@ -74,20 +78,28 @@ export default function DesignManager({
   }
 
   const handleRemoveDesign = useCallback(
-    async (id: string) => {
-      const updatedDesigns = designs.filter((d) => d.id !== id)
-      setDesigns(updatedDesigns)
-
-      if (onSave) {
+    async (designId: string) => {
+      setDesigns((prev) => prev.filter((d) => d.id !== designId))
+      if (subTaskId) {
+        try {
+          await fetch(`/api/designs`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ taskId, phaseId: subTaskId, designId }),
+          })
+        } catch (error) {
+          console.error("Error removing design:", error)
+        }
+      } else if (onSave) {
         setIsLoading(true)
         try {
-          await onSave(updatedDesigns)
+          await onSave(designs.filter((d) => d.id !== designId))
         } finally {
           setIsLoading(false)
         }
       }
     },
-    [designs, onSave]
+    [designs, onSave, taskId, subTaskId]
   )
 
   const handleUpload = async () => {
@@ -114,6 +126,8 @@ export default function DesignManager({
       formData.append("file", uploadFile)
       formData.append("title", uploadTitle)
       formData.append("description", uploadDescription)
+      formData.append("taskId", taskId)
+      if (subTaskId) formData.append("subTaskId", subTaskId)
       if (taskNumber) formData.append("taskNumber", taskNumber)
 
       const response = await fetch("/api/designs/upload", {
@@ -123,12 +137,12 @@ export default function DesignManager({
 
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.message || "Erro ao fazer upload")
+        throw new Error(errorData.error || errorData.message || "Erro ao fazer upload")
       }
 
       const data = await response.json()
       const newDesign: Design = {
-        id: data.fileName,
+        id: data.id ?? data.fileName,
         url: data.url,
         title: uploadTitle,
         description: uploadDescription,
@@ -137,7 +151,7 @@ export default function DesignManager({
       const updatedDesigns = [...designs, newDesign]
       setDesigns(updatedDesigns)
 
-      if (onSave) {
+      if (!subTaskId && onSave) {
         await onSave(updatedDesigns)
       }
 
@@ -209,6 +223,8 @@ export default function DesignManager({
           description: figmaDescription,
           figmaToken: figmaToken.trim() || undefined,
           taskNumber: taskNumber || undefined,
+          taskId,
+          subTaskId,
         }),
       })
 
@@ -219,7 +235,7 @@ export default function DesignManager({
 
       const data = await response.json()
       const newDesign: Design = {
-        id: data.fileName,
+        id: data.id ?? data.fileName,
         url: data.url,
         title: figmaTitle,
         description: figmaDescription,
@@ -228,7 +244,7 @@ export default function DesignManager({
       const updatedDesigns = [...designs, newDesign]
       setDesigns(updatedDesigns)
 
-      if (onSave) {
+      if (!subTaskId && onSave) {
         await onSave(updatedDesigns)
       }
 
@@ -270,16 +286,18 @@ export default function DesignManager({
       </div>
 
       {/* New Image Button */}
-      <Button
-        onClick={() => {
-          resetForm()
-          setShowDialog(true)
-        }}
-        className="gap-2"
-      >
-        <Plus className="h-4 w-4" />
-        Nova Imagem
-      </Button>
+      {!readOnly && (
+        <Button
+          onClick={() => {
+            resetForm()
+            setShowDialog(true)
+          }}
+          className="gap-2"
+        >
+          <Plus className="h-4 w-4" />
+          Nova Imagem
+        </Button>
+      )}
 
       {/* Gallery or Empty State */}
       {designs.length === 0 ? (
@@ -300,6 +318,7 @@ export default function DesignManager({
           onSelectDesign={setSelectedDesign}
           onRemoveDesign={handleRemoveDesign}
           isLoading={isLoading}
+          readOnly={readOnly}
         />
       )}
 

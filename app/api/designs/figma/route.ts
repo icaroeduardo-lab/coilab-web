@@ -1,6 +1,7 @@
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3"
 import { NextResponse } from "next/server"
 import { v4 as uuidv4 } from "uuid"
+import { apiClient } from "@/lib/api-client"
 
 const s3Client = new S3Client({
   credentials: {
@@ -34,7 +35,7 @@ function extractNodeId(url: string): string | null {
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { figmaUrl, title, description, figmaToken, taskNumber } = body
+    const { figmaUrl, title, description, figmaToken, taskNumber, taskId, subTaskId } = body
 
     if (!figmaUrl) {
       return NextResponse.json(
@@ -119,9 +120,19 @@ export async function POST(request: Request) {
 
     const s3Url = `https://${bucketName}.s3.${process.env.APP_AWS_REGION || "us-east-1"}.amazonaws.com/${fileName}`
 
+    let designId: string = fileName
+    if (taskId && subTaskId) {
+      const result = await apiClient.post<{ id: string }>(
+        `/tasks/${taskId}/subtasks/${subTaskId}/designs`,
+        { title: title || "Design from Figma", description: description || "", urlImage: s3Url },
+      )
+      designId = result.id
+    }
+
     return NextResponse.json(
       {
         success: true,
+        id: designId,
         url: s3Url,
         title: title || "Design from Figma",
         description: description || "",
