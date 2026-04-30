@@ -181,7 +181,7 @@ function DiscoveryForm({
     control,
     getValues,
     formState: { errors },
-  } = useForm({
+  } = useForm<z.infer<typeof baseSchema>>({
     resolver: zodResolver(schema) as any,
     defaultValues: {
       ...(initialData || {

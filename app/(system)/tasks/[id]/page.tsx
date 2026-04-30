@@ -1,6 +1,6 @@
 "use client"
 
-import { useRouter, useParams } from "next/navigation"
+import { useRouter, useParams, notFound } from "next/navigation"
 import { useState } from "react"
 import { ArrowLeft, AlertCircle, Loader2, User, Calendar, Plus, Trash2, Check, PlayCircle, CheckCircle2, RotateCcw, Clock, Save, Pencil, XCircle } from "lucide-react"
 import useSWR, { useSWRConfig } from "swr"
@@ -21,7 +21,14 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "sonner"
-const fetcher = (url: string) => fetch(url).then((r) => r.json())
+const fetcher = async (url: string) => {
+  const r = await fetch(url)
+  if (!r.ok) {
+    const err = Object.assign(new Error(`Erro ${r.status}`), { status: r.status })
+    throw err
+  }
+  return r.json()
+}
 
 type Phase = {
   id: string
@@ -928,6 +935,8 @@ export default function TaskDetailPage() {
       </div>
     )
   }
+
+  if (error?.status === 404) notFound()
 
   if (error || !data) {
     return (
