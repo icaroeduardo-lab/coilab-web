@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { apiClient } from "@/lib/api-client"
-import { normalizeTask, denormalizePriority, phaseIdToSubTaskType } from "@/lib/task-normalizer"
+import { normalizeTask, denormalizePriority, phaseIdToSubTaskType, NAME_TO_TYPEID } from "@/lib/task-normalizer"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapDiscoveryToBackend(d: any): Record<string, string | undefined> {
@@ -63,11 +63,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     // phases array → add new subtasks / remove disabled ones
     if (phases && !name && !description && !project && !applicant && !priority && !status) {
-      const current = await apiClient.get<{ subTasks: { id: string; type: string; status: string }[] }>(`/tasks/${id}`)
+      const current = await apiClient.get<{ subTasks: { id: string; typeId: number; status: string }[] }>(`/tasks/${id}`)
+      const TYPEID_TO_LOWER: Record<number, string> = { 1: "discovery", 2: "design", 3: "diagram" }
       const currentTypes = new Set(
         (current.subTasks ?? [])
           .filter((s) => s.status !== "Reprovado" && s.status !== "Cancelado")
-          .map((s) => s.type.toLowerCase())
+          .map((s) => TYPEID_TO_LOWER[s.typeId] ?? "")
       )
 
       const removedPhases = (phases as { id: string; enabled: boolean }[]).filter((p) => !p.enabled)
@@ -83,7 +84,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         const type = phaseIdToSubTaskType(phase.type ?? phase.id ?? "")
         if (!type) continue
         await apiClient.post(`/tasks/${id}/subtasks`, {
-          type,
+          typeId: NAME_TO_TYPEID[type] ?? 1,
           expectedDelivery: phase.dueDate ?? new Date().toISOString(),
         })
       }

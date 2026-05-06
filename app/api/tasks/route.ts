@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { apiClient } from "@/lib/api-client"
-import { normalizeTask, phaseIdToSubTaskType, denormalizePriority } from "@/lib/task-normalizer"
+import { normalizeTask, phaseIdToSubTaskType, denormalizePriority, NAME_TO_TYPEID } from "@/lib/task-normalizer"
 
 async function resolveProjectId(name: string): Promise<string | null> {
   const res = await apiClient.get<{ data: { id: string; name: string }[] }>("/projects?limit=200")
@@ -55,7 +55,7 @@ export async function POST(request: Request) {
       .map((phaseId) => {
         const type = phaseIdToSubTaskType(phaseId)
         if (!type) return null
-        return { type, expectedDelivery: phaseDueDates[phaseId] ?? new Date().toISOString() }
+        return { typeId: NAME_TO_TYPEID[type] ?? 1, expectedDelivery: phaseDueDates[phaseId] ?? new Date().toISOString() }
       })
       .filter(Boolean)
 
