@@ -9,6 +9,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       clientId: process.env.COGNITO_CLIENT_ID!,
       clientSecret: process.env.COGNITO_CLIENT_SECRET!,
       issuer: process.env.COGNITO_ISSUER!,
+      authorization: { params: { identity_provider: "Google" } },
     }),
   ],
   pages: {
