@@ -1,209 +1,77 @@
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, PutCommand, ScanCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
-import { NextResponse } from "next/server";
-import { v4 as uuidv4 } from "uuid";
+import { NextResponse } from "next/server"
+import { apiClient } from "@/lib/api-client"
+import { normalizeTask, phaseIdToSubTaskType, denormalizePriority } from "@/lib/task-normalizer"
 
-const client = new DynamoDBClient({
-  credentials: {
-    accessKeyId: process.env.APP_AWS_ACCESS_KEY_ID || "",
-    secretAccessKey: process.env.APP_AWS_SECRET_ACCESS_KEY || "",
-  },
-  region: process.env.APP_AWS_REGION || "us-east-1",
-});
-const docClient = DynamoDBDocumentClient.from(client);
+async function resolveProjectId(name: string): Promise<string | null> {
+  const res = await apiClient.get<{ data: { id: string; name: string }[] }>("/projects?limit=200")
+  const match = (res.data ?? []).find(
+    (p) => p.name.toLowerCase() === name.toLowerCase(),
+  )
+  return match?.id ?? null
+}
+
+async function resolveApplicantId(name: string): Promise<string | null> {
+  const res = await apiClient.get<{ data: { id: string; name: string }[] }>("/applicants?limit=200")
+  const match = (res.data ?? []).find(
+    (a) => a.name.toLowerCase() === name.toLowerCase(),
+  )
+  return match?.id ?? null
+}
 
 export async function GET(request: Request) {
   try {
-    const tableName = process.env.DYNAMODB_TABLE_TASKS;
-    const { searchParams } = new URL(request.url);
-    const projectFilter = searchParams.get("project");
+    const { searchParams } = new URL(request.url)
+    const projectName = searchParams.get("project")
 
-    if (!tableName) {
-      return NextResponse.json(
-        { error: "DYNAMODB_TABLE_TASKS environment variable is not set" },
-        { status: 500 }
-      );
+    if (projectName) {
+      const projectId = await resolveProjectId(projectName)
+      if (!projectId) return NextResponse.json([])
+      const res = await apiClient.get<{ data: unknown[] }>(`/tasks/project/${projectId}?limit=200`)
+      return NextResponse.json((res.data ?? []).map(normalizeTask))
     }
 
-    const { Items } = await docClient.send(
-      new ScanCommand({ TableName: tableName })
-    );
-
-    let tasks = (Items || []).filter((item: any) => !String(item.id).startsWith("COUNTER#"));
-
-    if (projectFilter) {
-      tasks = tasks.filter((item: any) =>
-        String(item.project || "").toLowerCase() === projectFilter.toLowerCase()
-      );
-    }
-
-    // Auto-correct kanban status using latest-per-base-type rule
-    const updates: { id: string; status: string }[] = [];
-
-    tasks = tasks.map((task: any) => {
-      const enabled = ((task.phases || []) as any[]).filter((p: any) => p.enabled);
-      if (enabled.length === 0) return task;
-
-      // Find latest version of each base type
-      const latestByBase = new Map<string, any>();
-      for (const phase of enabled) {
-        const base = (phase.id as string).split("_")[0];
-        const cur = latestByBase.get(base);
-        if (!cur || (phase.order ?? 0) > (cur.order ?? 0)) latestByBase.set(base, phase);
-      }
-      const latestPhases = [...latestByBase.values()];
-
-      const hasAnyStarted = latestPhases.some((p: any) =>
-        ["in_progress", "completed", "approved", "rejected"].includes(p.status)
-      );
-      const allReadyForCheckout = latestPhases.every((p: any) =>
-        ["completed", "approved"].includes(p.status)
-      );
-      const hasBlocker = latestPhases.some((p: any) =>
-        ["rejected", "in_progress", "not_started"].includes(p.status)
-      );
-
-      let corrected = task.status;
-      if (task.status === "Backlog" && hasAnyStarted) corrected = "Em Execução";
-      else if (task.status === "Em Execução" && allReadyForCheckout) corrected = "Checkout";
-      else if (task.status === "Checkout" && hasBlocker) corrected = "Em Execução";
-
-      if (corrected !== task.status) {
-        updates.push({ id: task.id, status: corrected });
-        return { ...task, status: corrected };
-      }
-      return task;
-    });
-
-    if (updates.length > 0) {
-      await Promise.all(
-        updates.map(({ id, status }) =>
-          docClient.send(
-            new UpdateCommand({
-              TableName: tableName,
-              Key: { id },
-              UpdateExpression: "set #s = :s",
-              ExpressionAttributeNames: { "#s": "status" },
-              ExpressionAttributeValues: { ":s": status },
-            })
-          )
-        )
-      );
-    }
-
-    return NextResponse.json(tasks);
-  } catch (error: any) {
-    console.error("Error fetching tasks from DynamoDB:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch tasks" },
-      { status: 500 }
-    );
+    const res = await apiClient.get<{ data: unknown[] }>("/tasks?limit=200")
+    return NextResponse.json((res.data ?? []).map(normalizeTask))
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Unknown error"
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }
 
-async function getNextTaskNumber(tableName: string, year: number): Promise<string> {
-  const result = await docClient.send(
-    new UpdateCommand({
-      TableName: tableName,
-      Key: { id: `COUNTER#${year}` },
-      UpdateExpression: "ADD #seq :inc",
-      ExpressionAttributeNames: { "#seq": "seq" },
-      ExpressionAttributeValues: { ":inc": 1 },
-      ReturnValues: "UPDATED_NEW",
-    })
-  );
-  const seq = result.Attributes?.seq as number;
-  return `${year}${String(seq).padStart(4, "0")}`;
-}
-
-const DEFAULT_PHASES = [
-  { id: "discovery", name: "Discovery", order: 0 },
-  { id: "design", name: "Design", order: 1 },
-  { id: "development", name: "Development", order: 2 },
-  { id: "testes", name: "Testes", order: 3 },
-];
-
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { name, project, priority, description, applicant, phases: selectedPhases = [], flows: selectedFlows = [], phaseDueDates = {} } = body;
+    const body = await request.json()
+    const { name, project, applicant, priority, description, phases = [], flows = [], phaseDueDates = {} } = body
 
-    const tableName = process.env.DYNAMODB_TABLE_TASKS;
-    const flowsTableName = process.env.DYNAMODB_TABLE_FLOWS || "coilab-flow";
+    const [projectId, applicantId] = await Promise.all([
+      resolveProjectId(project),
+      resolveApplicantId(applicant),
+    ])
 
-    if (!tableName) {
-      console.error("DYNAMODB_TABLE_TASKS environment variable is not set");
-      return NextResponse.json(
-        { error: "DYNAMODB_TABLE_TASKS environment variable is not set" },
-        { status: 500 }
-      );
-    }
+    if (!projectId) return NextResponse.json({ error: `Projeto "${project}" não encontrado` }, { status: 422 })
+    if (!applicantId) return NextResponse.json({ error: `Solicitante "${applicant}" não encontrado` }, { status: 422 })
 
-    const phases = DEFAULT_PHASES.map(p => ({
-      ...p,
-      enabled: selectedPhases.includes(p.id),
-      status: "not_started",
-      notes: "",
-      checklist: [],
-      ...(phaseDueDates[p.id] ? { dueDate: phaseDueDates[p.id] } : {}),
-    }));
-
-    // Fetch flow data from coilab-flow table
-    let flowsData: any[] = [];
-    if (selectedFlows.length > 0) {
-      try {
-        const { Items } = await docClient.send(
-          new ScanCommand({
-            TableName: flowsTableName,
-          })
-        );
-
-        flowsData = (Items || []).filter((item: any) => selectedFlows.includes(item.id));
-      } catch (error) {
-        console.warn("Could not fetch flows data:", error);
-        // Still create the task even if flows fetch fails
-        flowsData = selectedFlows.map((id: string) => ({ id, name: id }));
-      }
-    }
-
-    const year = new Date().getFullYear();
-    const taskNumber = await getNextTaskNumber(tableName, year);
-
-    const item = {
-      id: uuidv4(),
-      taskNumber,
-      name,
-      project,
-      applicant,
-      priority,
-      description,
-      status: "Backlog",
-      createdAt: new Date().toISOString(),
-      phases,
-      flows: flowsData,
-    };
-
-    console.log("Attempting to save item to DynamoDB:", { tableName, item });
-
-    await docClient.send(
-      new PutCommand({
-        TableName: tableName,
-        Item: item,
+    const subTasks = (phases as string[])
+      .map((phaseId) => {
+        const type = phaseIdToSubTaskType(phaseId)
+        if (!type) return null
+        return { type, expectedDelivery: phaseDueDates[phaseId] ?? new Date().toISOString() }
       })
-    );
+      .filter(Boolean)
 
-    console.log("Successfully saved item to DynamoDB");
-    return NextResponse.json({ success: true, item }, { status: 201 });
-  } catch (error: any) {
-    console.error("Error saving to DynamoDB detail:", {
-      message: error.message,
-      code: error.code,
-      name: error.name,
-      stack: error.stack,
-    });
-    return NextResponse.json(
-      { error: "Failed to save project", details: error.message },
-      { status: 500 }
-    );
+    const task = await apiClient.post<unknown>("/tasks", {
+      name,
+      description,
+      projectId,
+      applicantId,
+      priority: denormalizePriority(priority),
+      flowIds: flows,
+      subTasks,
+    })
+
+    return NextResponse.json(normalizeTask(task), { status: 201 })
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Unknown error"
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }

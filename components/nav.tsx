@@ -14,6 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Button } from "./ui/button"
 
 const links = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -63,7 +64,7 @@ export function Nav() {
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button className="flex items-center gap-2 rounded-full outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+          <Button className="flex items-center gap-2 bg-transparent hover:cursor-pointer rounded-full outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
             {session?.user?.name && (
               <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide hidden sm:block">
                 {session.user.name.toUpperCase()}
@@ -75,7 +76,7 @@ export function Nav() {
                 {getInitials(session?.user?.name)}
               </AvatarFallback>
             </Avatar>
-          </button>
+          </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-52">
           <DropdownMenuLabel className="font-normal">

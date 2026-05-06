@@ -11,7 +11,7 @@ async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = await getAccessToken()
 
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
+    ...(init.body !== undefined ? { "Content-Type": "application/json" } : {}),
     ...(init.headers as Record<string, string>),
   }
 
@@ -22,8 +22,13 @@ async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, { ...init, headers })
 
   if (!res.ok) {
-    const body = await res.text()
-    throw new Error(`API ${res.status}: ${body}`)
+    const text = await res.text()
+    let message = `Erro ${res.status}`
+    try {
+      const parsed = JSON.parse(text)
+      message = parsed.message ?? parsed.error ?? message
+    } catch {}
+    throw new Error(message)
   }
 
   if (res.status === 204) return undefined as T

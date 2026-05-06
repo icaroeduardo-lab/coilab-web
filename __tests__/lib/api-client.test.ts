@@ -10,12 +10,12 @@ const { apiClient } = await import("@/lib/api-client")
 const mockAuth = auth as ReturnType<typeof vi.fn>
 
 function mockFetch(status: number, body: unknown) {
-  global.fetch = vi.fn().mockResolvedValue({
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
     ok: status >= 200 && status < 300,
     status,
     json: () => Promise.resolve(body),
     text: () => Promise.resolve(JSON.stringify(body)),
-  })
+  }))
 }
 
 describe("apiClient", () => {
@@ -58,7 +58,7 @@ describe("apiClient", () => {
     mockAuth.mockResolvedValue({ accessToken: "tok" })
     mockFetch(404, { message: "Not Found" })
 
-    await expect(apiClient.get("/tasks/999")).rejects.toThrow("API 404")
+    await expect(apiClient.get("/tasks/999")).rejects.toThrow("Not Found")
   })
 
   it("POST sends body as JSON", async () => {
@@ -74,7 +74,7 @@ describe("apiClient", () => {
 
   it("returns undefined on 204 response", async () => {
     mockAuth.mockResolvedValue({ accessToken: "tok" })
-    global.fetch = vi.fn().mockResolvedValue({ ok: true, status: 204 })
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, status: 204 }))
 
     const result = await apiClient.delete("/tasks/1")
     expect(result).toBeUndefined()
