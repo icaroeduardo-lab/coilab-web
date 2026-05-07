@@ -1,11 +1,13 @@
 "use client"
 
 import { useState } from "react"
+import { useSession } from "next-auth/react"
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import {
   Accordion,
   AccordionContent,
@@ -13,8 +15,12 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion"
 import { Label } from "@/components/ui/label"
-import { Loader2, CheckCircle2, Save, Calendar, PlayCircle } from "lucide-react"
+import { Loader2, CheckCircle2, Save, Calendar, PlayCircle, XCircle } from "lucide-react"
 import useSWR from "swr"
+import { toast } from "sonner"
+
+type FieldMeta = { userId: string; filledAt: string }
+type DiscoveryMeta = Record<string, FieldMeta | null>
 
 type Phase = {
   id: string
@@ -45,84 +51,128 @@ type Task = {
 
 export type DiscoveryData = {
   projectName: string
-  sector: string
-  complexity: "small" | "complex"
-  flow: "interno" | "coppe" | "externo"
-  problemSummary: string
-  userPains: string
-  frequency: "diario" | "semanal" | "mensal" | "eventual"
+  complexity: "Alta" | "Baixa"
+  summary: string
+  painPoints: string
+  frequency: "Diária" | "Semanal" | "Mensal" | "Eventual"
   currentProcess: string
   inactionCost: string
   volume: string
-  averageTime: string
-  humanDependency: "alta" | "media" | "baixa"
-  reworkRate?: string
-  previousAttempts?: string
-  benchmark?: string
-  institutionalPriority: "alta" | "media" | "baixa"
-  aiPotential: "alto" | "medio" | "baixo"
+  avgTime: string
+  humanDependency: "Alta" | "Média" | "Baixa"
+  rework: string
+  previousAttempts: string
+  benchmark: string
+  institutionalPriority: "Alta" | "Média" | "Baixa"
   technicalOpinion: string
 }
 
 const baseSchema = z.object({
   projectName: z.string().min(1, "Nome do projeto é obrigatório"),
-  sector: z.string().optional(),
-  complexity: z.enum(["small", "complex"]),
-  flow: z.enum(["interno", "coppe", "externo"]),
-  problemSummary: z.string().min(1, "Resumo do problema é obrigatório"),
-  userPains: z.string().min(1, "Dores do usuário são obrigatórias"),
-  frequency: z.enum(["diario", "semanal", "mensal", "eventual"]),
+  complexity: z.enum(["Alta", "Baixa"]),
+  summary: z.string().min(1, "Resumo do problema é obrigatório"),
+  painPoints: z.string().min(1, "Dores do usuário são obrigatórias"),
+  frequency: z.enum(["Diária", "Semanal", "Mensal", "Eventual"]),
   currentProcess: z.string().min(1, "Passo a passo atual é obrigatório"),
   inactionCost: z.string().min(1, "Custo da inação é obrigatório"),
   volume: z.string().min(1, "Volume é obrigatório"),
-  averageTime: z.string().min(1, "Tempo médio é obrigatório"),
-  humanDependency: z.enum(["alta", "media", "baixa"]),
-  institutionalPriority: z.enum(["alta", "media", "baixa"]),
-  aiPotential: z.enum(["alto", "medio", "baixo"]),
+  avgTime: z.string().min(1, "Tempo médio é obrigatório"),
+  humanDependency: z.enum(["Alta", "Média", "Baixa"]),
+  rework: z.string().optional(),
+  previousAttempts: z.string().optional(),
+  benchmark: z.string().optional(),
+  institutionalPriority: z.enum(["Alta", "Média", "Baixa"]),
   technicalOpinion: z.string().min(1, "Parecer técnico é obrigatório"),
 })
 
 const complexSchema = baseSchema.extend({
-  reworkRate: z.string().min(1, "Retrabalho/Erro é obrigatório"),
+  rework: z.string().min(1, "Retrabalho/Erro é obrigatório"),
   previousAttempts: z.string().min(1, "Tentativas anteriores é obrigatório"),
   benchmark: z.string().min(1, "Benchmark é obrigatório"),
 })
 
-// Partial schema for draft saving (no required fields)
 const draftSchema = baseSchema.partial()
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
+
+function getInitials(name: string) {
+  if (!name || name === "—") return "?"
+  return name.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase()
+}
+
+function fmtDateTime(iso: string) {
+  if (!iso) return ""
+  return new Date(iso).toLocaleString("pt-BR", {
+    day: "2-digit", month: "2-digit", year: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  })
+}
+
+function FieldAuthor({ fieldMeta }: { fieldMeta: FieldMeta | null | undefined }) {
+  const { data: session } = useSession()
+  const isMe = !!fieldMeta && session?.user?.id === fieldMeta.userId
+  const { data: backendUser } = useSWR<{ name: string; imageUrl?: string | null }>(
+    fieldMeta && !isMe ? `/api/users/${fieldMeta.userId}` : null,
+    fetcher
+  )
+
+  if (!fieldMeta) return null
+
+  const name = isMe ? (session?.user?.name ?? "—") : (backendUser?.name ?? "...")
+  const image = isMe ? (session?.user?.image ?? null) : (backendUser?.imageUrl ?? null)
+
+  return (
+    <div className="flex items-center gap-1 mt-1 pl-3">
+      <div className="relative group/fa">
+        <Avatar size="sm" className="h-4 w-4 cursor-default">
+          {image && <AvatarImage src={image} alt={name} />}
+          <AvatarFallback className="text-[7px]">{getInitials(name)}</AvatarFallback>
+        </Avatar>
+        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 bg-popover text-popover-foreground border text-xs rounded shadow-md whitespace-nowrap opacity-0 group-hover/fa:opacity-100 pointer-events-none transition-opacity z-50">
+          {name}
+        </div>
+      </div>
+      <span className="text-[11px] text-muted-foreground">{name} · {fmtDateTime(fieldMeta.filledAt)}</span>
+    </div>
+  )
+}
 
 function DiscoveryForm({
   phase,
   taskId,
   initialData,
   taskData: externalTaskData,
+  discoveryMeta,
+  readOnly = false,
   onSaved,
 }: {
   phase: Phase
   taskId: string
   initialData?: DiscoveryData
   taskData?: Task
+  discoveryMeta?: DiscoveryMeta
+  readOnly?: boolean
   onSaved: (completed?: boolean) => void
 }) {
   const [isSaving, setIsSaving] = useState(false)
   const [isCompleting, setIsCompleting] = useState(false)
+  const [isCancelOpen, setIsCancelOpen] = useState(false)
+  const [cancelReason, setCancelReason] = useState("")
+  const [isCancelling, setIsCancelling] = useState(false)
+  const [localMeta, setLocalMeta] = useState<DiscoveryMeta>(() => discoveryMeta || {})
+  const { data: session } = useSession()
   const { data: fetchedTaskData, mutate } = useSWR<Task>(`/api/tasks/${taskId}`, fetcher)
   const taskData = externalTaskData || fetchedTaskData
 
-  const defaultComplexity = initialData?.complexity || "small"
-  const schema = defaultComplexity === "complex" ? complexSchema : baseSchema
-
-  const getDefaultFlow = () => {
-    if (initialData?.flow) return initialData.flow
-    if (taskData?.flows && taskData.flows.length > 0) {
-      const flowName = taskData.flows[0].name.toLowerCase()
-      if (flowName.includes("coppe")) return "coppe"
-      if (flowName.includes("externo")) return "externo"
-    }
-    return "interno"
+  const markField = (fieldName: string, value: unknown) => {
+    if (!value || (typeof value === "string" && !value.trim())) return
+    const userId = session?.user?.id
+    if (!userId) return
+    setLocalMeta(prev => ({ ...prev, [fieldName]: { userId, filledAt: new Date().toISOString() } }))
   }
+
+  const defaultComplexity = initialData?.complexity || "Baixa"
+  const schema = defaultComplexity === "Alta" ? complexSchema : baseSchema
 
   const {
     register,
@@ -131,17 +181,16 @@ function DiscoveryForm({
     control,
     getValues,
     formState: { errors },
-  } = useForm({
+  } = useForm<z.infer<typeof baseSchema>>({
     resolver: zodResolver(schema) as any,
-    defaultValues: initialData || {
-      projectName: taskData?.name || "",
-      sector: taskData?.applicant || "",
-      complexity: "small",
-      humanDependency: "media",
-      frequency: "eventual",
-      institutionalPriority: "media",
-      aiPotential: "medio",
-      flow: getDefaultFlow(),
+    defaultValues: {
+      ...(initialData || {
+        complexity: "Baixa" as const,
+        humanDependency: "Média" as const,
+        frequency: "Eventual" as const,
+        institutionalPriority: "Média" as const,
+      }),
+      projectName: taskData?.name || initialData?.projectName || "",
     },
   })
 
@@ -149,32 +198,24 @@ function DiscoveryForm({
 
   const buildDiscoveryData = (data: any): DiscoveryData => ({
     projectName: data.projectName || "",
-    sector: data.sector || taskData?.applicant || "",
-    complexity: data.complexity || "small",
-    flow: data.flow || "interno",
-    problemSummary: data.problemSummary || "",
-    userPains: data.userPains || "",
-    frequency: data.frequency || "eventual",
+    complexity: data.complexity || "Baixa",
+    summary: data.summary || "",
+    painPoints: data.painPoints || "",
+    frequency: data.frequency || "Eventual",
     currentProcess: data.currentProcess || "",
     inactionCost: data.inactionCost || "",
     volume: data.volume || "",
-    averageTime: data.averageTime || "",
-    humanDependency: data.humanDependency || "media",
-    institutionalPriority: data.institutionalPriority || "media",
-    aiPotential: data.aiPotential || "medio",
+    avgTime: data.avgTime || "",
+    humanDependency: data.humanDependency || "Média",
+    rework: data.rework || "",
+    previousAttempts: data.previousAttempts || "",
+    benchmark: data.benchmark || "",
+    institutionalPriority: data.institutionalPriority || "Média",
     technicalOpinion: data.technicalOpinion || "",
-    ...(data.complexity === "complex" && {
-      reworkRate: data.reworkRate || "",
-      previousAttempts: data.previousAttempts || "",
-      benchmark: data.benchmark || "",
-    }),
   })
 
-  const saveToPhase = async (discoveryData: DiscoveryData, action?: "start" | "complete") => {
-    if (!taskData) return
-
-    // Save discovery data via partial phase update
-    await fetch(`/api/tasks/${taskId}`, {
+  const saveDiscoveryData = async (discoveryData: DiscoveryData) => {
+    const res = await fetch(`/api/tasks/${taskId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -182,34 +223,18 @@ function DiscoveryForm({
         partialPhaseUpdate: true,
       }),
     })
-
-    // Then update phase status if needed
-    if (action === "start" && phase.status === "not_started") {
-      await fetch(`/api/tasks/${taskId}/phases/${phase.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "start" }),
-      })
-    } else if (action === "complete") {
-      await fetch(`/api/tasks/${taskId}/phases/${phase.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "complete" }),
-      })
-    }
-
-    mutate()
+    if (!res.ok) throw new Error("Erro ao salvar dados do Discovery")
   }
 
   const handleSaveDraft = async () => {
     const data = getValues()
     setIsSaving(true)
     try {
-      const discoveryData = buildDiscoveryData(data)
-      await saveToPhase(discoveryData)
+      await saveDiscoveryData(buildDiscoveryData(data))
+      mutate()
       onSaved(false)
-    } catch (error) {
-      console.error("Error saving draft:", error)
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao salvar rascunho")
     } finally {
       setIsSaving(false)
     }
@@ -218,13 +243,48 @@ function DiscoveryForm({
   const handleFinalize = async (data: any) => {
     setIsCompleting(true)
     try {
-      const discoveryData = buildDiscoveryData(data)
-      await saveToPhase(discoveryData, "complete")
+      await saveDiscoveryData(buildDiscoveryData(data))
+
+      const res = await fetch(`/api/tasks/${taskId}/phases/${phase.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "complete" }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.message || body.error || "Erro ao finalizar Discovery")
+      }
+
+      mutate()
       onSaved(true)
-    } catch (error) {
-      console.error("Error finalizing discovery:", error)
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao finalizar Discovery")
     } finally {
       setIsCompleting(false)
+    }
+  }
+
+  const handleCancelPhase = async () => {
+    if (!cancelReason.trim()) return
+    setIsCancelling(true)
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/phases/${phase.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "reopen", notes: cancelReason.trim() }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error || "Erro ao cancelar fase")
+      }
+      setIsCancelOpen(false)
+      setCancelReason("")
+      mutate()
+      onSaved()
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao cancelar fase")
+    } finally {
+      setIsCancelling(false)
     }
   }
 
@@ -233,6 +293,7 @@ function DiscoveryForm({
 
   return (
     <form className="space-y-6">
+      <fieldset disabled={readOnly} className="contents">
       <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-lg bg-muted/40 border mb-2">
         <div className="flex flex-wrap gap-4 text-xs">
           <div className="flex items-center gap-1.5">
@@ -251,30 +312,66 @@ function DiscoveryForm({
             <span className="font-medium">{fmtDate(phase.completedAt)}</span>
           </div>
         </div>
-        <div className="flex gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={isSaving || isCompleting}
-            onClick={handleSaveDraft}
-            className="gap-2"
-          >
-            {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-            Salvar Rascunho
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            disabled={isSaving || isCompleting}
-            onClick={handleSubmit(handleFinalize)}
-            className="gap-2"
-          >
-            {isCompleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
-            Finalizar Discovery
-          </Button>
-        </div>
+        {!readOnly && (
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={isSaving || isCompleting || isCancelling}
+              onClick={handleSaveDraft}
+              className="gap-2"
+            >
+              {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+              Salvar Rascunho
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={isSaving || isCompleting || isCancelling}
+              onClick={() => setIsCancelOpen(o => !o)}
+              className="gap-2 text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
+            >
+              <XCircle className="h-3.5 w-3.5" />
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              disabled={isSaving || isCompleting || isCancelling}
+              onClick={handleSubmit(handleFinalize)}
+              className="gap-2"
+            >
+              {isCompleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+              Finalizar Discovery
+            </Button>
+          </div>
+        )}
       </div>
+
+      {isCancelOpen && (
+        <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
+          <label className="text-xs font-medium block">Justificativa do cancelamento *</label>
+          <textarea
+            value={cancelReason}
+            onChange={(e) => setCancelReason(e.target.value)}
+            placeholder="Descreva o motivo do cancelamento..."
+            rows={3}
+            className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+          />
+          <div className="flex gap-2">
+            <Button type="button" size="sm" disabled={!cancelReason.trim() || isCancelling} onClick={handleCancelPhase} className="gap-2 bg-red-600 hover:bg-red-700">
+              {isCancelling && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              <XCircle className="h-3.5 w-3.5" />
+              Confirmar cancelamento
+            </Button>
+            <Button type="button" size="sm" variant="outline" disabled={isCancelling} onClick={() => { setIsCancelOpen(false); setCancelReason("") }}>
+              Voltar
+            </Button>
+          </div>
+        </div>
+      )}
 
       <div>
         <label className="text-sm font-semibold block mb-3">
@@ -286,11 +383,11 @@ function DiscoveryForm({
           render={({ field }) => (
             <div className="flex gap-4">
               <div className="flex items-center space-x-1.5">
-                <input type="radio" id="complexity-small" value="small" checked={field.value === "small"} onChange={() => field.onChange("small")} className="cursor-pointer" />
+                <input type="radio" id="complexity-small" value="Baixa" checked={field.value === "Baixa"} onChange={() => { field.onChange("Baixa"); markField("complexity", "Baixa") }} className="cursor-pointer" />
                 <Label htmlFor="complexity-small" className="font-normal cursor-pointer">Pequena</Label>
               </div>
               <div className="flex items-center space-x-1.5">
-                <input type="radio" id="complexity-complex" value="complex" checked={field.value === "complex"} onChange={() => field.onChange("complex")} className="cursor-pointer" />
+                <input type="radio" id="complexity-complex" value="Alta" checked={field.value === "Alta"} onChange={() => { field.onChange("Alta"); markField("complexity", "Alta") }} className="cursor-pointer" />
                 <Label htmlFor="complexity-complex" className="font-normal cursor-pointer">Média/Complexa</Label>
               </div>
             </div>
@@ -299,6 +396,7 @@ function DiscoveryForm({
         {errors.complexity && (
           <p className="text-xs text-destructive mt-1">{errors.complexity.message as string}</p>
         )}
+        <FieldAuthor fieldMeta={localMeta.complexity} />
       </div>
 
       {/* Identificação e Triagem */}
@@ -306,15 +404,12 @@ function DiscoveryForm({
         <h3 className="text-sm font-semibold mb-4">1. Identificação e Triagem</h3>
         <div className="space-y-4">
           <div>
-            <label className="text-sm font-medium block mb-1">Nome do Projeto *</label>
+            <label className="text-sm font-medium block mb-1">Nome do Projeto</label>
             <input
               {...register("projectName")}
-              placeholder="Digite o nome do projeto"
-              className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              disabled
+              className="w-full px-3 py-2 border border-input rounded-md bg-muted text-sm text-muted-foreground cursor-not-allowed"
             />
-            {errors.projectName && (
-              <p className="text-xs text-destructive mt-1">{errors.projectName.message as string}</p>
-            )}
           </div>
 
           <div>
@@ -330,7 +425,7 @@ function DiscoveryForm({
 
           <div>
             <label className="text-sm font-medium block mb-3">
-              Fluxo Previsto * <span className="text-xs text-muted-foreground">(preenchido automaticamente)</span>
+              Fluxo Previsto <span className="text-xs text-muted-foreground">(preenchido automaticamente)</span>
             </label>
             <div className="flex flex-wrap gap-2">
               {taskData?.flows && taskData.flows.length > 0 ? (
@@ -352,25 +447,29 @@ function DiscoveryForm({
           <div>
             <label className="text-sm font-medium block mb-1">Resumo em 1 Frase *</label>
             <input
-              {...register("problemSummary")}
+              {...register("summary")}
+              onBlur={(e) => markField("summary", e.target.value)}
               placeholder="Resuma o problema em uma frase"
               className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
             />
-            {errors.problemSummary && (
-              <p className="text-xs text-destructive mt-1">{errors.problemSummary.message as string}</p>
+            {errors.summary && (
+              <p className="text-xs text-destructive mt-1">{errors.summary.message as string}</p>
             )}
+            <FieldAuthor fieldMeta={localMeta.summary} />
           </div>
 
           <div>
             <label className="text-sm font-medium block mb-1">Dores do Usuário *</label>
             <textarea
-              {...register("userPains")}
+              {...register("painPoints")}
+              onBlur={(e) => markField("painPoints", e.target.value)}
               placeholder="Descreva as dores do usuário"
               className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary min-h-20"
             />
-            {errors.userPains && (
-              <p className="text-xs text-destructive mt-1">{errors.userPains.message as string}</p>
+            {errors.painPoints && (
+              <p className="text-xs text-destructive mt-1">{errors.painPoints.message as string}</p>
             )}
+            <FieldAuthor fieldMeta={localMeta.painPoints} />
           </div>
 
           <div>
@@ -381,43 +480,48 @@ function DiscoveryForm({
               render={({ field }) => (
                 <div className="flex gap-4 flex-wrap">
                   {[
-                    { value: "diario", label: "Diário" },
-                    { value: "semanal", label: "Semanal" },
-                    { value: "mensal", label: "Mensal" },
-                    { value: "eventual", label: "Eventual" },
+                    { value: "Diária", label: "Diário" },
+                    { value: "Semanal", label: "Semanal" },
+                    { value: "Mensal", label: "Mensal" },
+                    { value: "Eventual", label: "Eventual" },
                   ].map(({ value, label }) => (
                     <div key={value} className="flex items-center space-x-1.5">
-                      <input type="radio" id={`frequency-${value}`} value={value} checked={field.value === value} onChange={() => field.onChange(value)} className="cursor-pointer" />
+                      <input type="radio" id={`frequency-${value}`} value={value} checked={field.value === value} onChange={() => { field.onChange(value); markField("frequency", value) }} className="cursor-pointer" />
                       <Label htmlFor={`frequency-${value}`} className="font-normal cursor-pointer">{label}</Label>
                     </div>
                   ))}
                 </div>
               )}
             />
+            <FieldAuthor fieldMeta={localMeta.frequency} />
           </div>
 
           <div>
             <label className="text-sm font-medium block mb-1">Passo a Passo Atual *</label>
             <textarea
               {...register("currentProcess")}
+              onBlur={(e) => markField("currentProcess", e.target.value)}
               placeholder="Descreva o processo atual"
               className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary min-h-20"
             />
             {errors.currentProcess && (
               <p className="text-xs text-destructive mt-1">{errors.currentProcess.message as string}</p>
             )}
+            <FieldAuthor fieldMeta={localMeta.currentProcess} />
           </div>
 
           <div>
             <label className="text-sm font-medium block mb-1">Custo da Inação *</label>
             <textarea
               {...register("inactionCost")}
+              onBlur={(e) => markField("inactionCost", e.target.value)}
               placeholder="Qual é o custo de não resolver?"
               className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary min-h-20"
             />
             {errors.inactionCost && (
               <p className="text-xs text-destructive mt-1">{errors.inactionCost.message as string}</p>
             )}
+            <FieldAuthor fieldMeta={localMeta.inactionCost} />
           </div>
         </div>
       </div>
@@ -430,24 +534,28 @@ function DiscoveryForm({
             <label className="text-sm font-medium block mb-1">Volume *</label>
             <input
               {...register("volume")}
+              onBlur={(e) => markField("volume", e.target.value)}
               placeholder="Ex: 1000 registros/mês"
               className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
             />
             {errors.volume && (
               <p className="text-xs text-destructive mt-1">{errors.volume.message as string}</p>
             )}
+            <FieldAuthor fieldMeta={localMeta.volume} />
           </div>
 
           <div>
             <label className="text-sm font-medium block mb-1">Tempo Médio *</label>
             <input
-              {...register("averageTime")}
+              {...register("avgTime")}
+              onBlur={(e) => markField("avgTime", e.target.value)}
               placeholder="Ex: 2 horas por processo"
               className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
             />
-            {errors.averageTime && (
-              <p className="text-xs text-destructive mt-1">{errors.averageTime.message as string}</p>
+            {errors.avgTime && (
+              <p className="text-xs text-destructive mt-1">{errors.avgTime.message as string}</p>
             )}
+            <FieldAuthor fieldMeta={localMeta.avgTime} />
           </div>
 
           <div>
@@ -458,38 +566,41 @@ function DiscoveryForm({
               render={({ field }) => (
                 <div className="flex gap-4">
                   {[
-                    { value: "alta", label: "Alta" },
-                    { value: "media", label: "Média" },
-                    { value: "baixa", label: "Baixa" },
+                    { value: "Alta", label: "Alta" },
+                    { value: "Média", label: "Média" },
+                    { value: "Baixa", label: "Baixa" },
                   ].map(({ value, label }) => (
                     <div key={value} className="flex items-center space-x-1.5">
-                      <input type="radio" id={`humanDependency-${value}`} value={value} checked={field.value === value} onChange={() => field.onChange(value)} className="cursor-pointer" />
+                      <input type="radio" id={`humanDependency-${value}`} value={value} checked={field.value === value} onChange={() => { field.onChange(value); markField("humanDependency", value) }} className="cursor-pointer" />
                       <Label htmlFor={`humanDependency-${value}`} className="font-normal cursor-pointer">{label}</Label>
                     </div>
                   ))}
                 </div>
               )}
             />
+            <FieldAuthor fieldMeta={localMeta.humanDependency} />
           </div>
 
-          {complexity === "complex" && (
+          {complexity === "Alta" && (
             <div>
               <label className="text-sm font-medium block mb-1">Retrabalho/Erro *</label>
               <input
-                {...register("reworkRate")}
+                {...register("rework")}
+                onBlur={(e) => markField("rework", e.target.value)}
                 placeholder="Qual é a taxa de retrabalho/erro?"
                 className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />
-              {errors.reworkRate && (
-                <p className="text-xs text-destructive mt-1">{errors.reworkRate.message as string}</p>
+              {errors.rework && (
+                <p className="text-xs text-destructive mt-1">{errors.rework.message as string}</p>
               )}
+              <FieldAuthor fieldMeta={localMeta.rework} />
             </div>
           )}
         </div>
       </div>
 
       {/* Histórico e Benchmark */}
-      {complexity === "complex" && (
+      {complexity === "Alta" && (
         <div className="border-t pt-6">
           <h3 className="text-sm font-semibold mb-4">4. Histórico e Benchmark</h3>
           <div className="space-y-4">
@@ -497,24 +608,28 @@ function DiscoveryForm({
               <label className="text-sm font-medium block mb-1">Tentativas Anteriores *</label>
               <textarea
                 {...register("previousAttempts")}
+                onBlur={(e) => markField("previousAttempts", e.target.value)}
                 placeholder="Descreva tentativas anteriores para resolver este problema"
                 className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary min-h-20"
               />
               {errors.previousAttempts && (
                 <p className="text-xs text-destructive mt-1">{errors.previousAttempts.message as string}</p>
               )}
+              <FieldAuthor fieldMeta={localMeta.previousAttempts} />
             </div>
 
             <div>
               <label className="text-sm font-medium block mb-1">Benchmark *</label>
               <textarea
                 {...register("benchmark")}
+                onBlur={(e) => markField("benchmark", e.target.value)}
                 placeholder="Como outras organizações resolvem este problema?"
                 className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary min-h-20"
               />
               {errors.benchmark && (
                 <p className="text-xs text-destructive mt-1">{errors.benchmark.message as string}</p>
               )}
+              <FieldAuthor fieldMeta={localMeta.benchmark} />
             </div>
           </div>
         </div>
@@ -522,7 +637,7 @@ function DiscoveryForm({
 
       {/* Avaliação do Analista */}
       <div className="border-t pt-6">
-        <h3 className="text-sm font-semibold mb-4">{complexity === "complex" ? "5." : "4."} Avaliação do Analista</h3>
+        <h3 className="text-sm font-semibold mb-4">{complexity === "Alta" ? "5." : "4."} Avaliação do Analista</h3>
         <div className="space-y-4">
           <div>
             <label className="text-sm font-medium block mb-3">Prioridade Institucional *</label>
@@ -532,56 +647,38 @@ function DiscoveryForm({
               render={({ field }) => (
                 <div className="flex gap-4">
                   {[
-                    { value: "alta", label: "Alta" },
-                    { value: "media", label: "Média" },
-                    { value: "baixa", label: "Baixa" },
+                    { value: "Alta", label: "Alta" },
+                    { value: "Média", label: "Média" },
+                    { value: "Baixa", label: "Baixa" },
                   ].map(({ value, label }) => (
                     <div key={value} className="flex items-center space-x-1.5">
-                      <input type="radio" id={`institutionalPriority-${value}`} value={value} checked={field.value === value} onChange={() => field.onChange(value)} className="cursor-pointer" />
+                      <input type="radio" id={`institutionalPriority-${value}`} value={value} checked={field.value === value} onChange={() => { field.onChange(value); markField("institutionalPriority", value) }} className="cursor-pointer" />
                       <Label htmlFor={`institutionalPriority-${value}`} className="font-normal cursor-pointer">{label}</Label>
                     </div>
                   ))}
                 </div>
               )}
             />
-          </div>
-
-          <div>
-            <label className="text-sm font-medium block mb-3">Potencial de IA/Automação *</label>
-            <Controller
-              control={control}
-              name="aiPotential"
-              render={({ field }) => (
-                <div className="flex gap-4">
-                  {[
-                    { value: "alto", label: "Alto" },
-                    { value: "medio", label: "Médio" },
-                    { value: "baixo", label: "Baixo" },
-                  ].map(({ value, label }) => (
-                    <div key={value} className="flex items-center space-x-1.5">
-                      <input type="radio" id={`aiPotential-${value}`} value={value} checked={field.value === value} onChange={() => field.onChange(value)} className="cursor-pointer" />
-                      <Label htmlFor={`aiPotential-${value}`} className="font-normal cursor-pointer">{label}</Label>
-                    </div>
-                  ))}
-                </div>
-              )}
-            />
+            <FieldAuthor fieldMeta={localMeta.institutionalPriority} />
           </div>
 
           <div>
             <label className="text-sm font-medium block mb-1">Parecer Técnico *</label>
             <textarea
               {...register("technicalOpinion")}
+              onBlur={(e) => markField("technicalOpinion", e.target.value)}
               placeholder="Qual é seu parecer técnico sobre este problema?"
               className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary min-h-20"
             />
             {errors.technicalOpinion && (
               <p className="text-xs text-destructive mt-1">{errors.technicalOpinion.message as string}</p>
             )}
+            <FieldAuthor fieldMeta={localMeta.technicalOpinion} />
           </div>
         </div>
       </div>
 
+      </fieldset>
     </form>
   )
 }
@@ -589,33 +686,25 @@ function DiscoveryForm({
 function DiscoveryDisplay({ data }: { data: DiscoveryData }) {
   const labelMap: Record<string, string> = {
     projectName: "Nome do Projeto",
-    sector: "Setor/Área",
     complexity: "Complexidade",
-    flow: "Fluxo Previsto",
-    problemSummary: "Resumo do Problema",
-    userPains: "Dores do Usuário",
+    summary: "Resumo do Problema",
+    painPoints: "Dores do Usuário",
     frequency: "Frequência",
     currentProcess: "Passo a Passo Atual",
     inactionCost: "Custo da Inação",
     volume: "Volume",
-    averageTime: "Tempo Médio",
+    avgTime: "Tempo Médio",
     humanDependency: "Dependência Humana",
-    reworkRate: "Retrabalho/Erro",
+    rework: "Retrabalho/Erro",
     previousAttempts: "Tentativas Anteriores",
     benchmark: "Benchmark",
     institutionalPriority: "Prioridade Institucional",
-    aiPotential: "Potencial de IA/Automação",
     technicalOpinion: "Parecer Técnico",
   }
 
   const formatValue = (key: string, value: any) => {
     const maps: Record<string, Record<string, string>> = {
-      complexity: { small: "Pequena", complex: "Média/Complexa" },
-      flow: { interno: "Interno", coppe: "COPPE", externo: "Externo" },
-      frequency: { diario: "Diário", semanal: "Semanal", mensal: "Mensal", eventual: "Eventual" },
-      humanDependency: { alta: "Alta", media: "Média", baixa: "Baixa" },
-      institutionalPriority: { alta: "Alta", media: "Média", baixa: "Baixa" },
-      aiPotential: { alto: "Alto", medio: "Médio", baixo: "Baixo" },
+      complexity: { Alta: "Média/Complexa", Baixa: "Pequena" },
     }
     return maps[key]?.[value] ?? value
   }
@@ -629,7 +718,7 @@ function DiscoveryDisplay({ data }: { data: DiscoveryData }) {
       <AccordionItem value="identificacao">
         <AccordionTrigger>1. Identificação e Triagem</AccordionTrigger>
         <AccordionContent className="space-y-3">
-          {["projectName", "sector", "complexity", "flow"].map(key => (
+          {["projectName", "complexity"].map(key => (
             <div key={key}>
               <h4 className="text-xs font-semibold text-muted-foreground mb-1">{labelMap[key]}</h4>
               <p className="text-sm text-foreground">{formatValue(key, data[key as keyof DiscoveryData])}</p>
@@ -641,7 +730,7 @@ function DiscoveryDisplay({ data }: { data: DiscoveryData }) {
       <AccordionItem value="diagnostico">
         <AccordionTrigger>2. Diagnóstico do Problema</AccordionTrigger>
         <AccordionContent className="space-y-3">
-          {["problemSummary", "userPains", "frequency", "currentProcess", "inactionCost"].map(key => (
+          {["summary", "painPoints", "frequency", "currentProcess", "inactionCost"].map(key => (
             <div key={key}>
               <h4 className="text-xs font-semibold text-muted-foreground mb-1">{labelMap[key]}</h4>
               <p className="text-sm text-foreground whitespace-pre-wrap">{formatValue(key, data[key as keyof DiscoveryData])}</p>
@@ -653,7 +742,7 @@ function DiscoveryDisplay({ data }: { data: DiscoveryData }) {
       <AccordionItem value="dados">
         <AccordionTrigger>3. Dados para Decisão</AccordionTrigger>
         <AccordionContent className="space-y-3">
-          {["volume", "averageTime", "humanDependency", ...(data.reworkRate ? ["reworkRate"] : [])].map(key => (
+          {["volume", "avgTime", "humanDependency", ...(data.rework ? ["rework"] : [])].map(key => (
             <div key={key}>
               <h4 className="text-xs font-semibold text-muted-foreground mb-1">{labelMap[key]}</h4>
               <p className="text-sm text-foreground">{formatValue(key, data[key as keyof DiscoveryData])}</p>
@@ -662,7 +751,7 @@ function DiscoveryDisplay({ data }: { data: DiscoveryData }) {
         </AccordionContent>
       </AccordionItem>
 
-      {data.complexity === "complex" && (
+      {data.complexity === "Alta" && (
         <AccordionItem value="historico">
           <AccordionTrigger>4. Histórico e Benchmark</AccordionTrigger>
           <AccordionContent className="space-y-3">
@@ -677,9 +766,9 @@ function DiscoveryDisplay({ data }: { data: DiscoveryData }) {
       )}
 
       <AccordionItem value="avaliacao">
-        <AccordionTrigger>{data.complexity === "complex" ? "5." : "4."} Avaliação do Analista</AccordionTrigger>
+        <AccordionTrigger>{data.complexity === "Alta" ? "5." : "4."} Avaliação do Analista</AccordionTrigger>
         <AccordionContent className="space-y-3">
-          {["institutionalPriority", "aiPotential", "technicalOpinion"].map(key => (
+          {["institutionalPriority", "technicalOpinion"].map(key => (
             <div key={key}>
               <h4 className="text-xs font-semibold text-muted-foreground mb-1">{labelMap[key]}</h4>
               <p className="text-sm text-foreground whitespace-pre-wrap">{formatValue(key, data[key as keyof DiscoveryData])}</p>
@@ -695,13 +784,14 @@ export function DiscoveryPhaseTab({
   phase,
   taskId,
   onPhaseUpdate,
+  discoveryMeta,
 }: {
   phase: Phase
   taskId: string
   onPhaseUpdate: (phases: Phase[]) => void
+  discoveryMeta?: DiscoveryMeta
 }) {
   const { data: taskData, mutate } = useSWR<Task>(`/api/tasks/${taskId}`, fetcher)
-  const [isEditing, setIsEditing] = useState(false)
   const [isStarting, setIsStarting] = useState(false)
 
   const handleStart = async () => {
@@ -714,14 +804,13 @@ export function DiscoveryPhaseTab({
       })
       mutate()
       onPhaseUpdate([])
-    } catch (error) {
-      console.error("Error starting phase:", error)
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao iniciar fase")
     } finally {
       setIsStarting(false)
     }
   }
 
-  // Not started: show only the Iniciar button
   if (phase.status === "not_started") {
     return (
       <div className="flex items-center gap-3 p-4 rounded-lg border border-dashed">
@@ -737,7 +826,6 @@ export function DiscoveryPhaseTab({
     )
   }
 
-  // Approved or rejected: locked read-only, no editing
   if ((phase.status === "approved" || phase.status === "rejected") && phase.discoveryData) {
     return (
       <div className="space-y-6">
@@ -746,30 +834,25 @@ export function DiscoveryPhaseTab({
     )
   }
 
-  // Completed with data: show read-only view with Edit button
-  if (phase.status === "completed" && phase.discoveryData && !isEditing) {
+  if (phase.status === "completed" && phase.discoveryData) {
     return (
       <div className="space-y-6">
         <DiscoveryDisplay data={phase.discoveryData} />
-        <Button variant="outline" onClick={() => setIsEditing(true)} className="gap-2">
-          Editar Discovery
-        </Button>
       </div>
     )
   }
 
-  // in_progress or editing completed: show form
+  const isLocked = ["completed", "approved", "rejected"].includes(phase.status)
+
   return (
     <DiscoveryForm
       phase={phase}
       taskId={taskId}
       initialData={phase.discoveryData}
+      discoveryMeta={discoveryMeta}
       taskData={taskData}
-      onSaved={(completed) => {
-        if (completed) setIsEditing(false)
-        mutate()
-        onPhaseUpdate([])
-      }}
+      readOnly={isLocked}
+      onSaved={() => { mutate(); onPhaseUpdate([]) }}
     />
   )
 }

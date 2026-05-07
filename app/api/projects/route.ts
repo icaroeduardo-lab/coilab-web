@@ -1,107 +1,34 @@
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, PutCommand, ScanCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
-import { NextResponse } from "next/server";
-import { v4 as uuidv4 } from "uuid";
+import { NextResponse } from "next/server"
+import { apiClient } from "@/lib/api-client"
 
-const client = new DynamoDBClient({
-  credentials: {
-    accessKeyId: process.env.APP_AWS_ACCESS_KEY_ID || "",
-    secretAccessKey: process.env.APP_AWS_SECRET_ACCESS_KEY || "",
-  },
-  region: process.env.APP_AWS_REGION || "us-east-1",
-});
-const docClient = DynamoDBDocumentClient.from(client);
+type BackendProject = Record<string, unknown> & { urlDocument?: string }
+
+function normalize(p: BackendProject) {
+  const { urlDocument, ...rest } = p
+  return { ...rest, documentPath: urlDocument }
+}
 
 export async function GET() {
   try {
-    const tableName = process.env.DYNAMODB_TABLE_PROJECTS;
-
-    if (!tableName) {
-      return NextResponse.json(
-        { error: "DYNAMODB_TABLE_PROJECTS environment variable is not set" },
-        { status: 500 }
-      );
-    }
-
-    const { Items } = await docClient.send(
-      new ScanCommand({ TableName: tableName })
-    );
-
-    const projects = (Items || []).filter((item: any) => !String(item.id).startsWith("COUNTER#"));
-    return NextResponse.json(projects);
-  } catch (error: any) {
-    console.error("Error fetching projects from DynamoDB:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch projects" },
-      { status: 500 }
-    );
+    const result = await apiClient.get<{ data: BackendProject[] }>("/projects?limit=200")
+    return NextResponse.json((result.data ?? []).map(normalize))
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Unknown error"
+    return NextResponse.json({ error: message }, { status: 500 })
   }
-}
-
-async function getNextProjectNumber(tableName: string, year: number): Promise<string> {
-  const result = await docClient.send(
-    new UpdateCommand({
-      TableName: tableName,
-      Key: { id: `COUNTER#${year}` },
-      UpdateExpression: "ADD #seq :inc",
-      ExpressionAttributeNames: { "#seq": "seq" },
-      ExpressionAttributeValues: { ":inc": 1 },
-      ReturnValues: "UPDATED_NEW",
-    })
-  );
-  const seq = result.Attributes?.seq as number;
-  return `${year}${String(seq).padStart(4, "0")}`;
 }
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { name, description, documentPath } = body;
-
-    const tableName = process.env.DYNAMODB_TABLE_PROJECTS;
-
-    if (!tableName) {
-      console.error("DYNAMODB_TABLE_PROJECTS environment variable is not set");
-      return NextResponse.json(
-        { error: "DYNAMODB_TABLE_PROJECTS environment variable is not set" },
-        { status: 500 }
-      );
-    }
-
-    const year = new Date().getFullYear();
-    const projectNumber = await getNextProjectNumber(tableName, year);
-
-    const item = {
-      id: uuidv4(),
-      projectNumber,
+    const { name, description, documentPath } = await request.json()
+    const project = await apiClient.post<BackendProject>("/projects", {
       name,
       description,
-      ...(documentPath && { documentPath }),
-      status: "Ativo",
-      createdAt: new Date().toISOString(),
-    };
-
-    console.log("Attempting to save item to DynamoDB (projects):", { tableName, item });
-
-    await docClient.send(
-      new PutCommand({
-        TableName: tableName,
-        Item: item,
-      })
-    );
-
-    console.log("Successfully saved item to DynamoDB (projects)");
-    return NextResponse.json({ success: true, item }, { status: 201 });
-  } catch (error: any) {
-    console.error("Error saving to DynamoDB (projects) detail:", {
-      message: error.message,
-      code: error.code,
-      name: error.name,
-      stack: error.stack,
-    });
-    return NextResponse.json(
-      { error: "Failed to save project", details: error.message },
-      { status: 500 }
-    );
+      ...(documentPath && { urlDocument: documentPath }),
+    })
+    return NextResponse.json(normalize(project), { status: 201 })
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Unknown error"
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }

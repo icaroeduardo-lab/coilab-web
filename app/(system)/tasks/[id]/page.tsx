@@ -1,8 +1,8 @@
 "use client"
 
-import { useRouter, useParams } from "next/navigation"
+import { useRouter, useParams, notFound } from "next/navigation"
 import { useState } from "react"
-import { ArrowLeft, AlertCircle, Loader2, User, Calendar, Plus, Trash2, Check, PlayCircle, CheckCircle2, RotateCcw, Clock, Save, Pencil } from "lucide-react"
+import { ArrowLeft, AlertCircle, Loader2, User, Calendar, Plus, Trash2, Check, PlayCircle, CheckCircle2, RotateCcw, Clock, Save, Pencil, XCircle } from "lucide-react"
 import useSWR, { useSWRConfig } from "swr"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -20,10 +20,19 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-const fetcher = (url: string) => fetch(url).then((r) => r.json())
+import { toast } from "sonner"
+const fetcher = async (url: string) => {
+  const r = await fetch(url)
+  if (!r.ok) {
+    const err = Object.assign(new Error(`Erro ${r.status}`), { status: r.status })
+    throw err
+  }
+  return r.json()
+}
 
 type Phase = {
   id: string
+  type?: string
   name: string
   order: number
   enabled: boolean
@@ -33,7 +42,9 @@ type Phase = {
   completedAt?: string
   notes?: string
   checklist: { id: string; label: string; completed: boolean }[]
+  designs?: Design[]
   discoveryData?: any
+  discoveryMeta?: Record<string, { userId: string; filledAt: string } | null>
 }
 
 type Task = {
@@ -51,8 +62,8 @@ type Task = {
   flows?: { id: string; name: string }[]
 }
 
-function PriorityBadge({ priority }: { priority: string }) {
-  const p = priority.toLowerCase()
+function PriorityBadge({ priority }: { priority?: string }) {
+  const p = (priority ?? "").toLowerCase()
   if (p === "alta" || p === "high" || p === "urgente" || p === "crítica") {
     return (
       <Badge variant="destructive" className="gap-1">
@@ -74,8 +85,8 @@ function PriorityBadge({ priority }: { priority: string }) {
   )
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const s = status.toLowerCase()
+function StatusBadge({ status }: { status?: string }) {
+  const s = (status ?? "").toLowerCase()
   if (s.includes("conclu") || s.includes("done") || s.includes("feito") || s.includes("finaliz")) {
     return (
       <Badge className="gap-1 bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800">
@@ -197,14 +208,100 @@ function usePhaseActions(phase: Phase, taskId: string, onPhaseUpdate: (phases: P
         mutateGlobal("/api/tasks")
       }
       onPhaseUpdate([])
-    } catch (error) {
-      console.error("Error updating phase:", error)
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao atualizar fase")
     } finally {
       setIsLoading(false)
     }
   }
 
   return { isLoading, callPhaseAction }
+}
+
+function PhaseCancel({
+  phase,
+  taskId,
+  onCancelled,
+}: {
+  phase: Phase
+  taskId: string
+  onCancelled: () => void
+}) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [reason, setReason] = useState("")
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const handleSubmit = async () => {
+    if (!reason.trim()) return
+    setIsSubmitting(true)
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/phases/${phase.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "reopen", notes: reason.trim() }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error || "Erro ao cancelar fase")
+      }
+      setIsOpen(false)
+      setReason("")
+      onCancelled()
+    } catch (e: any) {
+      toast.error(e.message || "Erro ao cancelar fase")
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  return (
+    <div className="space-y-4 rounded-lg border bg-muted/20 p-4">
+      <div className="flex items-center gap-2">
+        <h3 className="text-sm font-semibold">Cancelamento</h3>
+      </div>
+      {!isOpen ? (
+        <div className="flex gap-2 border-t pt-3">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setIsOpen(true)}
+            className="gap-2 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+          >
+            <XCircle className="h-3.5 w-3.5" />
+            Cancelar Fase
+          </Button>
+        </div>
+      ) : (
+        <div className="space-y-3 border-t pt-3">
+          <div>
+            <label className="text-xs font-medium block mb-1.5">Justificativa (obrigatória) *</label>
+            <textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Descreva o motivo do cancelamento..."
+              rows={3}
+              className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              disabled={!reason.trim() || isSubmitting}
+              onClick={handleSubmit}
+              className="gap-2 bg-red-600 hover:bg-red-700"
+            >
+              {isSubmitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              <XCircle className="h-3.5 w-3.5" />
+              Confirmar cancelamento
+            </Button>
+            <Button size="sm" variant="outline" disabled={isSubmitting} onClick={() => { setIsOpen(false); setReason("") }}>
+              Voltar
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 function PhaseStatusHeader({
@@ -217,6 +314,8 @@ function PhaseStatusHeader({
   onPhaseUpdate: (phases: Phase[]) => void
 }) {
   const { isLoading, callPhaseAction } = usePhaseActions(phase, taskId, onPhaseUpdate)
+  const [isCancelOpen, setIsCancelOpen] = useState(false)
+  const [cancelReason, setCancelReason] = useState("")
 
   return (
     <div className="space-y-4 mb-6">
@@ -231,10 +330,16 @@ function PhaseStatusHeader({
             </Button>
           )}
           {phase.status === "in_progress" && (
-            <Button size="sm" disabled={isLoading} onClick={() => callPhaseAction("complete")} className="gap-2">
-              <CheckCircle2 className="h-3.5 w-3.5" />
-              Finalizar Fase
-            </Button>
+            <>
+              <Button size="sm" variant="outline" disabled={isLoading} onClick={() => setIsCancelOpen(o => !o)} className="gap-2 text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive">
+                <XCircle className="h-3.5 w-3.5" />
+                Cancelar Fase
+              </Button>
+              <Button size="sm" disabled={isLoading} onClick={() => callPhaseAction("complete")} className="gap-2">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                Finalizar Fase
+              </Button>
+            </>
           )}
           {phase.status === "completed" && (
             <Button size="sm" variant="outline" disabled={isLoading} onClick={() => callPhaseAction("reopen")} className="gap-2">
@@ -251,6 +356,28 @@ function PhaseStatusHeader({
         <div className="flex items-center gap-3 p-3 rounded-lg border border-dashed text-sm text-muted-foreground">
           <Clock className="h-4 w-4 shrink-0" />
           Esta fase ainda não foi iniciada.
+        </div>
+      )}
+      {isCancelOpen && (
+        <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
+          <label className="text-xs font-medium block">Justificativa do cancelamento *</label>
+          <textarea
+            value={cancelReason}
+            onChange={(e) => setCancelReason(e.target.value)}
+            placeholder="Descreva o motivo do cancelamento..."
+            rows={3}
+            className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+          />
+          <div className="flex gap-2">
+            <Button size="sm" disabled={!cancelReason.trim() || isLoading} onClick={() => { callPhaseAction("reopen", { notes: cancelReason.trim() }); setIsCancelOpen(false); setCancelReason("") }} className="gap-2 bg-red-600 hover:bg-red-700">
+              {isLoading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              <XCircle className="h-3.5 w-3.5" />
+              Confirmar cancelamento
+            </Button>
+            <Button size="sm" variant="outline" disabled={isLoading} onClick={() => { setIsCancelOpen(false); setCancelReason("") }}>
+              Voltar
+            </Button>
+          </div>
         </div>
       )}
     </div>
@@ -275,8 +402,8 @@ function PhaseTab({ phase, taskId, onPhaseUpdate }: { phase: Phase; taskId: stri
         }),
       })
       mutate()
-    } catch {
-      console.error("Erro ao salvar rascunho")
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao salvar rascunho")
     }
   }
 
@@ -372,8 +499,7 @@ function PhaseTab({ phase, taskId, onPhaseUpdate }: { phase: Phase; taskId: stri
 const ALL_PHASES = [
   { id: "discovery", name: "Discovery", order: 1 },
   { id: "design", name: "Design", order: 2 },
-  { id: "development", name: "Development", order: 3 },
-  { id: "testes", name: "Testes", order: 4 },
+  { id: "diagram", name: "Diagram", order: 3 },
 ]
 
 function PhasesCard({
@@ -409,7 +535,7 @@ function PhasesCard({
   }
 
   const disabledPhases = ALL_PHASES.filter(
-    p => !allPhases.find(ap => ap.id === p.id && ap.enabled)
+    p => !allPhases.find(ap => ap.type === p.id && ap.status !== "rejected")
   )
 
   const handleAdd = async () => {
@@ -452,8 +578,8 @@ function PhasesCard({
       setSelectedPhaseId("")
       setDueDate(undefined)
       setErrors({})
-    } catch (error) {
-      console.error("Error adding phase:", error)
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao adicionar fase")
     } finally {
       setIsSaving(false)
     }
@@ -493,6 +619,13 @@ function PhasesCard({
               </tr>
             </thead>
             <tbody className="divide-y">
+              {enabledPhases.length === 0 && !isAdding && (
+                <tr>
+                  <td colSpan={6} className="px-6 py-6 text-center text-sm text-muted-foreground">
+                    Nenhuma subtarefa aberta para esta tarefa.
+                  </td>
+                </tr>
+              )}
               {enabledPhases.map((phase) => {
                 const status = effectiveStatus(phase)
                 return (
@@ -590,18 +723,16 @@ function DesignPhaseTab({
   phase,
   taskId,
   taskNumber,
-  initialDesigns,
-  onSave,
   onPhaseUpdate,
 }: {
   phase: Phase
   taskId: string
   taskNumber?: string
-  initialDesigns: any[]
-  onSave: (designs: any[]) => Promise<void>
   onPhaseUpdate: (phases: Phase[]) => void
 }) {
   const { isLoading, callPhaseAction } = usePhaseActions(phase, taskId, onPhaseUpdate)
+  const [isCancelOpen, setIsCancelOpen] = useState(false)
+  const [cancelReason, setCancelReason] = useState("")
 
   if (phase.status === "not_started") {
     return (
@@ -648,9 +779,9 @@ function DesignPhaseTab({
             </Button>
           ) : (
             <>
-              <Button size="sm" variant="outline" disabled={isLoading} onClick={() => onSave(initialDesigns)} className="gap-2">
-                <Save className="h-3.5 w-3.5" />
-                Salvar Rascunho
+              <Button size="sm" variant="outline" disabled={isLoading} onClick={() => setIsCancelOpen(o => !o)} className="gap-2 text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive">
+                <XCircle className="h-3.5 w-3.5" />
+                Cancelar Design
               </Button>
               <Button size="sm" disabled={isLoading} onClick={() => callPhaseAction("complete")} className="gap-2">
                 <CheckCircle2 className="h-3.5 w-3.5" />
@@ -660,11 +791,35 @@ function DesignPhaseTab({
           )}
         </div>
       </div>
+      {isCancelOpen && (
+        <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
+          <label className="text-xs font-medium block">Justificativa do cancelamento *</label>
+          <textarea
+            value={cancelReason}
+            onChange={(e) => setCancelReason(e.target.value)}
+            placeholder="Descreva o motivo do cancelamento..."
+            rows={3}
+            className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+          />
+          <div className="flex gap-2">
+            <Button size="sm" disabled={!cancelReason.trim() || isLoading} onClick={() => { callPhaseAction("reopen", { notes: cancelReason.trim() }); setIsCancelOpen(false); setCancelReason("") }} className="gap-2 bg-red-600 hover:bg-red-700">
+              {isLoading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              <XCircle className="h-3.5 w-3.5" />
+              Confirmar cancelamento
+            </Button>
+            <Button size="sm" variant="outline" disabled={isLoading} onClick={() => { setIsCancelOpen(false); setCancelReason("") }}>
+              Voltar
+            </Button>
+          </div>
+        </div>
+      )}
+
       <DesignManager
         taskId={taskId}
+        subTaskId={phase.id}
         taskNumber={taskNumber}
-        initialDesigns={initialDesigns}
-        onSave={onSave}
+        initialDesigns={phase.designs ?? []}
+        readOnly={["completed", "approved", "rejected"].includes(phase.status)}
       />
     </div>
   )
@@ -701,44 +856,45 @@ export default function TaskDetailPage() {
     setEditForm({
       name: data.name,
       description: data.description || "",
-      project: data.project,
-      applicant: data.applicant,
+      project: data.project?.toUpperCase() ?? "",
+      applicant: data.applicant?.toUpperCase() ?? "",
       priority: data.priority,
     })
     setPhasesToDelete(new Set())
     setIsEditOpen(true)
   }
 
+  const patchTask = async (body: object) => {
+    const res = await fetch(`/api/tasks/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    })
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}))
+      throw new Error(json.error || "Erro ao salvar alterações")
+    }
+    return res
+  }
+
   const handleSaveEdit = async () => {
     if (!editForm) return
     setIsSavingEdit(true)
     try {
-      const promises: Promise<any>[] = [
-        fetch(`/api/tasks/${id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(editForm),
-        }),
-      ]
+      await patchTask(editForm)
       if (phasesToDelete.size > 0) {
         const updatedPhases = (data?.phases || []).map(p =>
           phasesToDelete.has(p.id) ? { ...p, enabled: false } : p
         )
-        promises.push(
-          fetch(`/api/tasks/${id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ phases: updatedPhases }),
-          })
-        )
+        await patchTask({ phases: updatedPhases })
       }
-      await Promise.all(promises)
       await mutate()
       mutateGlobalTasks("/api/tasks")
       setPhasesToDelete(new Set())
       setIsEditOpen(false)
-    } catch (e) {
-      console.error("Error saving edit:", e)
+      toast.success("Tarefa atualizada com sucesso")
+    } catch (e: any) {
+      toast.error(e.message || "Erro ao salvar alterações")
     } finally {
       setIsSavingEdit(false)
     }
@@ -747,12 +903,18 @@ export default function TaskDetailPage() {
   const handleDelete = async () => {
     setIsDeleting(true)
     try {
-      await fetch(`/api/tasks/${id}`, { method: "DELETE" })
+      const res = await fetch(`/api/tasks/${id}`, { method: "DELETE" })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error || "Erro ao excluir tarefa")
+      }
       mutateGlobalTasks("/api/tasks")
+      toast.success("Tarefa excluída com sucesso")
       router.push("/tasks")
-    } catch (e) {
-      console.error("Error deleting task:", e)
+    } catch (e: any) {
+      toast.error(e.message || "Erro ao excluir tarefa")
       setIsDeleting(false)
+      setIsDeleteOpen(false)
     }
   }
 
@@ -773,6 +935,8 @@ export default function TaskDetailPage() {
       </div>
     )
   }
+
+  if (error?.status === 404) notFound()
 
   if (error || !data) {
     return (
@@ -976,7 +1140,7 @@ export default function TaskDetailPage() {
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
-              <AlertDialogAction onClick={handleDelete} disabled={isDeleting} className="gap-2">
+              <AlertDialogAction onClick={(e) => { e.preventDefault(); handleDelete() }} disabled={isDeleting} className="gap-2">
                 {isDeleting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                 Excluir
               </AlertDialogAction>
@@ -1019,7 +1183,7 @@ export default function TaskDetailPage() {
               <Card>
                 <CardContent className="pt-4 pb-4">
                   <p className="text-xs text-muted-foreground mb-1">Solicitante</p>
-                  <p className="text-sm font-medium truncate">{data.applicant || "—"}</p>
+                  <p className="text-sm font-medium truncate">{data.applicant ? data.applicant.toUpperCase() : "—"}</p>
                 </CardContent>
               </Card>
             </div>
@@ -1037,14 +1201,12 @@ export default function TaskDetailPage() {
             )}
 
             {/* Phases progress */}
-            {(enabledPhases.length > 0 || (data.phases || []).some(p => !p.enabled)) && (
-              <PhasesCard
-                allPhases={data.phases || []}
-                enabledPhases={enabledPhases}
-                taskId={id}
-                onUpdate={() => mutate()}
-              />
-            )}
+            <PhasesCard
+              allPhases={data.phases || []}
+              enabledPhases={enabledPhases}
+              taskId={id}
+              onUpdate={() => mutate()}
+            />
 
             {/* Flows */}
             {data.flows && data.flows.length > 0 && (
@@ -1055,7 +1217,7 @@ export default function TaskDetailPage() {
                 <CardContent>
                   <div className="flex flex-wrap gap-2">
                     {data.flows.map((flow: any) => (
-                      <Badge key={flow.id} variant="secondary">{flow.name}</Badge>
+                      <Badge key={flow.id} variant="secondary">{flow.name.toUpperCase()}</Badge>
                     ))}
                   </div>
                 </CardContent>
@@ -1074,7 +1236,7 @@ export default function TaskDetailPage() {
             <TabsContent key={phase.id} value={phase.id}>
               <Card>
                 <CardContent className="pt-6">
-                  {phase.id.startsWith("discovery") ? (
+                  {(phase.type === "discovery" || phase.id.startsWith("discovery")) ? (
                     <div className="space-y-6">
                       {(phase.status === "completed" || phase.status === "approved" || phase.status === "rejected") && (
                         <PhaseApproval
@@ -1088,9 +1250,10 @@ export default function TaskDetailPage() {
                         phase={phase}
                         taskId={id}
                         onPhaseUpdate={setPhases}
+                        discoveryMeta={phase.discoveryMeta}
                       />
                     </div>
-                  ) : phase.id.startsWith("design") ? (
+                  ) : (phase.type === "design" || phase.id.startsWith("design")) ? (
                     <div className="space-y-6">
                       {(phase.status === "completed" || phase.status === "approved" || phase.status === "rejected") && (
                         <PhaseApproval
@@ -1104,19 +1267,6 @@ export default function TaskDetailPage() {
                         phase={phase}
                         taskId={id}
                         taskNumber={data.taskNumber}
-                        initialDesigns={data.design || []}
-                        onSave={async (designs) => {
-                          try {
-                            await fetch(`/api/designs?taskId=${id}`, {
-                              method: "POST",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ taskId: id, designs }),
-                            })
-                            mutate()
-                          } catch (error) {
-                            console.error("Error saving designs:", error)
-                          }
-                        }}
                         onPhaseUpdate={setPhases}
                       />
                     </div>
