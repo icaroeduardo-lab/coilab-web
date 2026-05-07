@@ -10,6 +10,10 @@ async function getAccessToken(): Promise<string | undefined> {
 async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = await getAccessToken()
 
+  if (!token) {
+    console.warn(`[api-client] No access token for ${path} — session may be expired`)
+  }
+
   const headers: Record<string, string> = {
     ...(init.body !== undefined ? { "Content-Type": "application/json" } : {}),
     ...(init.headers as Record<string, string>),

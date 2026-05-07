@@ -91,7 +91,11 @@ import {
 } from "@/components/ui/badge"
 import { DataTable } from "@/components/data-table"
 
-const fetcher = (url: string) => fetch(url).then((res) => res.json())
+const fetcher = async (url: string) => {
+  const res = await fetch(url)
+  if (!res.ok) throw Object.assign(new Error(`Erro ${res.status}`), { status: res.status })
+  return res.json()
+}
 
 const formSchema = z.object({
   name: z.string().min(2, {
@@ -110,7 +114,7 @@ const formSchema = z.object({
     message: "A tarefa deve ter uma descrição obrigatória.",
   }),
   phases: z.array(z.string()),
-  flows: z.array(z.string()).optional(),
+  flows: z.array(z.union([z.string(), z.number()])).optional(),
 })
 
 const editSchema = z.object({
@@ -870,11 +874,11 @@ export default function Page() {
                                   <label key={flow.id} className="flex items-center gap-3 text-sm cursor-pointer hover:bg-muted/50 p-2 rounded transition-colors">
                                     <input
                                       type="checkbox"
-                                      checked={field.value?.includes(flow.id) || false}
+                                      checked={field.value?.map(String).includes(String(flow.id)) || false}
                                       onChange={(e) => {
                                         const updated = e.target.checked
                                           ? [...(field.value || []), flow.id]
-                                          : (field.value || []).filter((id: string) => id !== flow.id)
+                                          : (field.value || []).filter((id) => String(id) !== String(flow.id))
                                         field.onChange(updated)
                                       }}
                                       className="rounded border-gray-300 cursor-pointer"
