@@ -289,7 +289,7 @@ function TaskCard({
         >
           <CardHeader className="p-4 pb-2 pr-10">
             {task.taskNumber && (
-              <span className="text-[10px] font-mono text-muted-foreground/70 mb-0.5">#{task.taskNumber}</span>
+              <span className="text-[10px] font-mono text-muted-foreground/70 mb-0.5">{task.taskNumber}</span>
             )}
             <CardTitle className="text-sm font-bold">{task.name}</CardTitle>
             <CardDescription className="text-xs">{task.project}</CardDescription>
@@ -532,7 +532,7 @@ export default function Page() {
       header: "Nº",
       cell: ({ row }) => (
         <span className="text-xs font-mono text-muted-foreground whitespace-nowrap">
-          {row.getValue("taskNumber") ? `#${row.getValue("taskNumber")}` : "—"}
+          {row.getValue("taskNumber") ? row.getValue("taskNumber") : "—"}
         </span>
       ),
     },
