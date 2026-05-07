@@ -18,8 +18,10 @@ import {
   CircleX,
   CalendarDays,
   User,
-  Eye,
   CalendarIcon,
+  Pencil,
+  Trash2,
+  MoreHorizontal,
 } from "lucide-react"
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
@@ -27,6 +29,7 @@ import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ColumnDef } from "@tanstack/react-table"
 import useSWR, { useSWRConfig } from "swr"
+import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -36,6 +39,22 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import {
   Form,
   FormControl,
@@ -53,7 +72,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import {
   Card,
@@ -93,6 +111,14 @@ const formSchema = z.object({
   }),
   phases: z.array(z.string()),
   flows: z.array(z.string()).optional(),
+})
+
+const editSchema = z.object({
+  name: z.string().min(2, { message: "O nome deve ter pelo menos 2 caracteres." }),
+  applicant: z.string().min(1, { message: "O departamento que solicitou é obrigatório." }),
+  project: z.string().min(2, { message: "O projeto é obrigatório." }),
+  priority: z.string().min(2, { message: "A prioridade é obrigatória." }),
+  description: z.string().min(2, { message: "A tarefa deve ter uma descrição obrigatória." }),
 })
 
 type Phase = {
@@ -218,117 +244,77 @@ function StatusBadge({ status }: { status: string }) {
   )
 }
 
-const columns: ColumnDef<Task>[] = [
-  {
-    accessorKey: "taskNumber",
-    header: "Nº",
-    cell: ({ row }) => (
-      <span className="text-xs font-mono text-muted-foreground whitespace-nowrap">
-        {row.getValue("taskNumber") ? `#${row.getValue("taskNumber")}` : "—"}
-      </span>
-    ),
-  },
-  {
-    accessorKey: "name",
-    header: "Nome",
-    cell: ({ row }) => (
-      <Link
-        href={`/tasks/${row.original.id}`}
-        className="font-medium text-sm text-primary hover:underline"
-      >
-        {row.getValue("name")}
-      </Link>
-    ),
-  },
-  {
-    accessorKey: "project",
-    header: "Projeto",
-    cell: ({ row }) => (
-      <span className="text-sm text-muted-foreground">{row.getValue("project")}</span>
-    ),
-  },
-  {
-    accessorKey: "applicant",
-    header: "Solicitante",
-    cell: ({ row }) => (
-      <div className="flex items-center gap-1.5">
-        <User className="h-3.5 w-3.5 text-muted-foreground" />
-        <span className="text-sm">{row.getValue("applicant")}</span>
-      </div>
-    ),
-  },
-  {
-    accessorKey: "priority",
-    header: "Prioridade",
-    cell: ({ row }) => <PriorityBadge priority={row.getValue("priority")} />,
-  },
-  {
-    accessorKey: "status",
-    header: "Status",
-    cell: ({ row }) => <StatusBadge status={row.getValue("status")} />,
-  },
-  {
-    accessorKey: "createdAt",
-    header: "Criado em",
-    cell: ({ row }) => {
-      const date = new Date(row.getValue("createdAt"))
-      return (
-        <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-          <CalendarDays className="h-3.5 w-3.5" />
-          {date.toLocaleDateString("pt-BR")}
-        </div>
-      )
-    },
-  },
-]
-
-function TaskCard({ task }: { task: Task }) {
+function TaskCard({
+  task,
+  onEdit,
+  onDelete,
+}: {
+  task: Task
+  onEdit: (task: Task) => void
+  onDelete: (task: Task) => void
+}) {
   const isRejected = task.hasRejection && task.status === "Em Execução"
   const rejectedPhases = isRejected
     ? (task.phases || []).filter(p => p.enabled && p.status === "rejected").map(p => p.name)
     : []
 
   return (
-    <Link href={`/tasks/${task.id}`}>
-      <Card
-        style={{
-          borderTopWidth: "2px",
-          borderTopStyle: "solid",
-          borderTopColor: isRejected ? "rgb(248 113 113)" : "rgb(203 213 225)",
-        }}
-        className="group transition-shadow duration-150 cursor-pointer hover:[box-shadow:0_-2px_8px_0_rgb(0_0_0/0.08),0_4px_8px_0_rgb(0_0_0/0.08)]"
-      >
-        <CardHeader className="p-4 pb-2">
-          {task.taskNumber && (
-            <span className="text-[10px] font-mono text-muted-foreground/70 mb-0.5">#{task.taskNumber}</span>
-          )}
-          <CardTitle className="text-sm font-bold">{task.name}</CardTitle>
-          <CardDescription className="text-xs">{task.project}</CardDescription>
-        </CardHeader>
-        <CardContent className="p-4 pt-0 text-xs">
-          <div className="flex flex-col gap-1">
-            {isRejected && (
-              <div className="flex items-center gap-1.5 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 rounded px-2 py-1 mb-1">
-                <CircleX className="h-3 w-3 shrink-0" />
-                <span className="text-[11px]">Reprovado: {rejectedPhases.join(", ")}</span>
-              </div>
+    <div className="relative group/card">
+      <div className="absolute top-2 right-2 z-10 opacity-0 group-hover/card:opacity-100 transition-opacity flex gap-0.5">
+        <button
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onEdit(task) }}
+          className="h-6 w-6 flex items-center justify-center rounded bg-background/90 backdrop-blur-sm border border-border/50 text-muted-foreground hover:text-foreground hover:border-border transition-colors shadow-sm"
+        >
+          <Pencil className="h-3 w-3" />
+        </button>
+        <button
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete(task) }}
+          className="h-6 w-6 flex items-center justify-center rounded bg-background/90 backdrop-blur-sm border border-border/50 text-muted-foreground hover:text-destructive hover:border-destructive/50 transition-colors shadow-sm"
+        >
+          <Trash2 className="h-3 w-3" />
+        </button>
+      </div>
+      <Link href={`/tasks/${task.id}`}>
+        <Card
+          style={{
+            borderTopWidth: "2px",
+            borderTopStyle: "solid",
+            borderTopColor: isRejected ? "rgb(248 113 113)" : "rgb(203 213 225)",
+          }}
+          className="group transition-shadow duration-150 cursor-pointer hover:[box-shadow:0_-2px_8px_0_rgb(0_0_0/0.08),0_4px_8px_0_rgb(0_0_0/0.08)]"
+        >
+          <CardHeader className="p-4 pb-2 pr-10">
+            {task.taskNumber && (
+              <span className="text-[10px] font-mono text-muted-foreground/70 mb-0.5">#{task.taskNumber}</span>
             )}
-            <p className="line-clamp-3 text-muted-foreground mb-2">{task.description}</p>
-            <div className="flex flex-wrap gap-1 mb-2">
-              <PriorityBadge priority={task.priority} />
-              <Badge variant="outline" className="gap-1">
-                <User />
-                {task.applicant}
-              </Badge>
+            <CardTitle className="text-sm font-bold">{task.name}</CardTitle>
+            <CardDescription className="text-xs">{task.project}</CardDescription>
+          </CardHeader>
+          <CardContent className="p-4 pt-0 text-xs">
+            <div className="flex flex-col gap-1">
+              {isRejected && (
+                <div className="flex items-center gap-1.5 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 rounded px-2 py-1 mb-1">
+                  <CircleX className="h-3 w-3 shrink-0" />
+                  <span className="text-[11px]">Reprovado: {rejectedPhases.join(", ")}</span>
+                </div>
+              )}
+              <p className="line-clamp-3 text-muted-foreground mb-2">{task.description}</p>
+              <div className="flex flex-wrap gap-1 mb-2">
+                <PriorityBadge priority={task.priority} />
+                <Badge variant="outline" className="gap-1">
+                  <User />
+                  {task.applicant}
+                </Badge>
+              </div>
+              <div className="flex items-center justify-between text-[10px] text-muted-foreground border-t pt-2">
+                <span>Criado em:</span>
+                <span>{new Date(task.createdAt).toLocaleDateString("pt-BR")}</span>
+              </div>
             </div>
-            <div className="flex items-center justify-between text-[10px] text-muted-foreground border-t pt-2">
-              <span>Criado em:</span>
-              <span>{new Date(task.createdAt).toLocaleDateString("pt-BR")}</span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    </Link>
+          </CardContent>
+        </Card>
+      </Link>
+    </div>
   )
 }
 
@@ -350,9 +336,13 @@ function sortTasks(tasks: Task[]): Task[] {
 function KanbanColumn({
   column,
   tasks,
+  onEdit,
+  onDelete,
 }: {
   column: KanbanColumnConfig
   tasks: Task[]
+  onEdit: (task: Task) => void
+  onDelete: (task: Task) => void
 }) {
   return (
     <div className={`flex flex-col gap-4 bg-muted/50 p-4 rounded-xl min-w-72 w-full border-t-2 ${column.accent}`}>
@@ -372,7 +362,7 @@ function KanbanColumn({
       <p className="text-[11px] text-muted-foreground/70 px-1 -mt-2">{column.description}</p>
       <div className="flex flex-col gap-3 min-h-50">
         {tasks.map((task) => (
-          <TaskCard key={task.id} task={task} />
+          <TaskCard key={task.id} task={task} onEdit={onEdit} onDelete={onDelete} />
         ))}
       </div>
     </div>
@@ -382,11 +372,10 @@ function KanbanColumn({
 export default function Page() {
   const { mutate } = useSWRConfig()
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
-  const [feedback, setFeedback] = useState<{
-    type: "success" | "error" | null
-    message: string
-  } | null>(null)
-  
+  const [editingTask, setEditingTask] = useState<Task | null>(null)
+  const [deletingTask, setDeletingTask] = useState<Task | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+
   const { data: tasksData, isLoading: tasksLoading } = useSWR<Task[]>("/api/tasks", fetcher)
 
   const { data: applicantsData } = useSWR<Option[]>("/api/applicants", fetcher)
@@ -395,14 +384,13 @@ export default function Page() {
 
   const tasks = Array.isArray(tasksData) ? tasksData : []
 
-  const applicants = Array.isArray(applicantsData) ? applicantsData.map(a => ({ ...a, name: a.name.toUpperCase() })) : []
-  const projects = Array.isArray(projectsData) ? projectsData.map(p => ({ ...p, name: p.name.toUpperCase() })) : []
-  const flows = Array.isArray(flowsData) ? flowsData.map(f => ({ ...f, name: f.name.toUpperCase() })) : []
+  const applicants = Array.isArray(applicantsData) ? applicantsData.map(a => ({ ...a, name: a.name.toUpperCase() })).filter((a, i, arr) => arr.findIndex(x => x.name === a.name) === i) : []
+  const projects = Array.isArray(projectsData) ? projectsData.map(p => ({ ...p, name: p.name.toUpperCase() })).filter((p, i, arr) => arr.findIndex(x => x.name === p.name) === i) : []
+  const flows = Array.isArray(flowsData) ? flowsData.map(f => ({ ...f, name: f.name.toUpperCase() })).filter((f, i, arr) => arr.findIndex(x => x.name === f.name) === i) : []
   const DEFAULT_PHASES = [
     { id: "discovery", name: "Discovery" },
     { id: "design", name: "Design" },
-    { id: "development", name: "Development" },
-    { id: "testes", name: "Testes" },
+    { id: "diagram", name: "Diagram" },
   ]
   const phases = DEFAULT_PHASES
 
@@ -421,12 +409,34 @@ export default function Page() {
     },
   })
 
+  const editForm = useForm<z.infer<typeof editSchema>>({
+    resolver: zodResolver(editSchema),
+    defaultValues: {
+      name: "",
+      project: "",
+      applicant: "",
+      priority: "Baixa",
+      description: "",
+    },
+  })
+
   function handleDialogOpenChange(open: boolean) {
     setIsCreateDialogOpen(open)
     if (!open) {
       form.reset()
       setPhaseDates({})
     }
+  }
+
+  function handleEditOpen(task: Task) {
+    editForm.reset({
+      name: task.name,
+      project: task.project,
+      applicant: task.applicant,
+      priority: task.priority,
+      description: task.description ?? "",
+    })
+    setEditingTask(task)
   }
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
@@ -441,9 +451,7 @@ export default function Page() {
     try {
       const response = await fetch("/api/tasks", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...values,
           phaseDueDates: Object.fromEntries(
@@ -457,22 +465,151 @@ export default function Page() {
       setIsCreateDialogOpen(false)
 
       if (!response.ok) {
-        throw new Error("Erro ao salvar a tarefa")
+        const body = await response.json().catch(() => ({}))
+        throw new Error(body.error || body.message || "Erro ao salvar a tarefa")
       }
 
       form.reset()
       setPhaseDates({})
-      setFeedback({ type: "success", message: "Tarefa criada com sucesso" })
+      toast.success("Tarefa criada com sucesso")
       mutate("/api/tasks")
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erro no formulário:", error)
       setIsCreateDialogOpen(false)
-      setFeedback({
-        type: "error",
-        message: "Ocorreu um erro ao criar a tarefa. Tente novamente.",
-      })
+      toast.error(error.message || "Ocorreu um erro ao criar a tarefa. Tente novamente.")
     }
   }
+
+  async function onEditSubmit(values: z.infer<typeof editSchema>) {
+    if (!editingTask) return
+    try {
+      const response = await fetch(`/api/tasks/${editingTask.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(values),
+      })
+
+      setEditingTask(null)
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}))
+        throw new Error(body.error || body.message || "Erro ao atualizar a tarefa")
+      }
+
+      toast.success("Tarefa atualizada")
+      mutate("/api/tasks")
+    } catch (error: any) {
+      toast.error(error.message || "Ocorreu um erro ao atualizar a tarefa.")
+    }
+  }
+
+  async function handleDelete() {
+    if (!deletingTask) return
+    setIsDeleting(true)
+    try {
+      const response = await fetch(`/api/tasks/${deletingTask.id}`, { method: "DELETE" })
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}))
+        throw new Error(body.error || body.message || "Erro ao excluir a tarefa")
+      }
+      toast.success("Tarefa excluída")
+      mutate("/api/tasks")
+    } catch (error: any) {
+      toast.error(error.message || "Ocorreu um erro ao excluir a tarefa.")
+    } finally {
+      setIsDeleting(false)
+      setDeletingTask(null)
+    }
+  }
+
+  const columns: ColumnDef<Task>[] = [
+    {
+      accessorKey: "taskNumber",
+      header: "Nº",
+      cell: ({ row }) => (
+        <span className="text-xs font-mono text-muted-foreground whitespace-nowrap">
+          {row.getValue("taskNumber") ? `#${row.getValue("taskNumber")}` : "—"}
+        </span>
+      ),
+    },
+    {
+      accessorKey: "name",
+      header: "Nome",
+      cell: ({ row }) => (
+        <Link
+          href={`/tasks/${row.original.id}`}
+          className="font-medium text-sm text-primary hover:underline"
+        >
+          {row.getValue("name")}
+        </Link>
+      ),
+    },
+    {
+      accessorKey: "project",
+      header: "Projeto",
+      cell: ({ row }) => (
+        <span className="text-sm text-muted-foreground">{row.getValue("project")}</span>
+      ),
+    },
+    {
+      accessorKey: "applicant",
+      header: "Solicitante",
+      cell: ({ row }) => (
+        <div className="flex items-center gap-1.5">
+          <User className="h-3.5 w-3.5 text-muted-foreground" />
+          <span className="text-sm">{row.getValue("applicant")}</span>
+        </div>
+      ),
+    },
+    {
+      accessorKey: "priority",
+      header: "Prioridade",
+      cell: ({ row }) => <PriorityBadge priority={row.getValue("priority")} />,
+    },
+    {
+      accessorKey: "status",
+      header: "Status",
+      cell: ({ row }) => <StatusBadge status={row.getValue("status")} />,
+    },
+    {
+      accessorKey: "createdAt",
+      header: "Criado em",
+      cell: ({ row }) => {
+        const date = new Date(row.getValue("createdAt"))
+        return (
+          <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+            <CalendarDays className="h-3.5 w-3.5" />
+            {date.toLocaleDateString("pt-BR")}
+          </div>
+        )
+      },
+    },
+    {
+      id: "actions",
+      cell: ({ row }) => (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground">
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => handleEditOpen(row.original)}>
+              <Pencil className="h-3.5 w-3.5 mr-2" />
+              Editar
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => setDeletingTask(row.original)}
+              className="text-destructive focus:text-destructive"
+            >
+              <Trash2 className="h-3.5 w-3.5 mr-2" />
+              Excluir
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ),
+    },
+  ]
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -644,7 +781,6 @@ export default function Page() {
                   <div className="space-y-4">
                     <h3 className="text-sm font-semibold text-muted-foreground">Configurações</h3>
 
-                    {/* Fases e Fluxos em dois blocos lado a lado */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       {/* Fases */}
                       <FormField
@@ -755,13 +891,8 @@ export default function Page() {
                     </div>
                   </div>
 
-                  {/* Botões de Ação */}
                   <div className="flex gap-3 pt-4 border-t">
-                    <Button
-                      type="submit"
-                      className="flex-1"
-                      size="lg"
-                    >
+                    <Button type="submit" className="flex-1" size="lg">
                       Salvar Tarefa
                     </Button>
                     <Button
@@ -796,6 +927,8 @@ export default function Page() {
                   tasks={sortTasks(tasks.filter(
                     (t) => t.status.toLowerCase() === column.id.toLowerCase()
                   ))}
+                  onEdit={handleEditOpen}
+                  onDelete={setDeletingTask}
                 />
               ))}
             </div>
@@ -812,36 +945,160 @@ export default function Page() {
         </TabsContent>
       </Tabs>
 
-      <Dialog open={!!feedback} onOpenChange={(open) => !open && setFeedback(null)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader className="sr-only">
-            <DialogTitle>
-              {feedback?.type === "success" ? "Sucesso" : "Erro"}
-            </DialogTitle>
+      {/* Edit Dialog */}
+      <Dialog open={!!editingTask} onOpenChange={(open) => !open && setEditingTask(null)}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Editar Tarefa</DialogTitle>
           </DialogHeader>
-          <div className="flex flex-col items-center justify-center space-y-4 py-6 text-center">
-            {feedback?.type === "success" ? (
-              <CheckCircle2 className="h-12 w-12 text-green-500" />
-            ) : (
-              <AlertCircle className="h-12 w-12 text-destructive" />
-            )}
-            <div className="space-y-2">
-              <h2 className="text-xl font-semibold">
-                {feedback?.type === "success" ? "Sucesso!" : "Erro"}
-              </h2>
-              <p className="text-muted-foreground">{feedback?.message}</p>
-            </div>
-            <Button
-              type="button"
-              variant="secondary"
-              className="mt-4"
-              onClick={() => setFeedback(null)}
-            >
-              Fechar
-            </Button>
+          <div className="py-4">
+            <Form {...editForm}>
+              <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-6">
+                <FormField
+                  control={editForm.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Nome da Tarefa *</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="Nome da tarefa" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={editForm.control}
+                    name="project"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Projeto *</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Selecione" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {projects.map((project) => (
+                              <SelectItem key={project.id} value={project.name}>
+                                {project.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={editForm.control}
+                    name="applicant"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Solicitante *</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Selecione" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {applicants.map((applicant) => (
+                              <SelectItem key={applicant.id} value={applicant.name}>
+                                {applicant.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <FormField
+                  control={editForm.control}
+                  name="priority"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Prioridade *</FormLabel>
+                      <FormControl>
+                        <div className="flex gap-4 pt-1">
+                          {["Baixa", "Média", "Alta"].map((p) => (
+                            <div key={p} className="flex items-center space-x-1.5">
+                              <input
+                                type="radio"
+                                id={`edit-priority-${p}`}
+                                value={p}
+                                checked={field.value === p}
+                                onChange={field.onChange}
+                                className="cursor-pointer"
+                              />
+                              <Label htmlFor={`edit-priority-${p}`} className="font-normal cursor-pointer text-sm">{p}</Label>
+                            </div>
+                          ))}
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={editForm.control}
+                  name="description"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Descrição *</FormLabel>
+                      <FormControl>
+                        <Textarea {...field} placeholder="Descrição da tarefa..." className="min-h-24" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <div className="flex gap-3 pt-4 border-t">
+                  <Button type="submit" className="flex-1" size="lg" disabled={editForm.formState.isSubmitting}>
+                    {editForm.formState.isSubmitting ? "Salvando..." : "Salvar Alterações"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setEditingTask(null)}
+                    className="flex-1"
+                    size="lg"
+                  >
+                    Cancelar
+                  </Button>
+                </div>
+              </form>
+            </Form>
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deletingTask} onOpenChange={(open) => !open && setDeletingTask(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir tarefa?</AlertDialogTitle>
+            <AlertDialogDescription>
+              A tarefa <strong>&ldquo;{deletingTask?.name}&rdquo;</strong> será excluída permanentemente.
+              Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? "Excluindo..." : "Excluir"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

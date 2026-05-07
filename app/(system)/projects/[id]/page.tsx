@@ -76,7 +76,7 @@ export default function ProjectDetailPage() {
   )
 
   const { data: tasks = [], isLoading: tasksLoading } = useSWR<Task[]>(
-    project?.name ? `/api/tasks?project=${encodeURIComponent(project.name)}` : null,
+    id ? `/api/tasks/project/${id}` : null,
     fetcher
   )
 
