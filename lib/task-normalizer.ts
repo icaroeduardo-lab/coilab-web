@@ -21,6 +21,21 @@ const PHASE_ID_MAP: Record<string, string> = {
   diagram: "Diagram",
 }
 
+const TYPEID_TO_NAME: Record<number, string> = {
+  1: "Discovery",
+  2: "Design",
+  3: "Diagram",
+}
+
+export const NAME_TO_TYPEID: Record<string, number> = {
+  discovery: 1,
+  design: 2,
+  diagram: 3,
+  Discovery: 1,
+  Design: 2,
+  Diagram: 3,
+}
+
 export function subTaskStatusToPhaseStatus(status: string): PhaseStatus {
   return SUBTASK_STATUS_MAP[status] ?? "not_started"
 }
@@ -93,12 +108,15 @@ function buildDiscoveryData(form: any) {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function normalizeSubTask(st: any) {
-  const discovery = mapBackendDiscovery(st.discoveryForm)
+  const typeName = TYPEID_TO_NAME[st.typeId] ?? st.type ?? "unknown"
+  const metadata = st.metadata ?? {}
+  const discovery = mapBackendDiscovery(metadata.form ?? st.discoveryForm)
+  const designs = metadata.designs ?? st.designs ?? []
   return {
     id: st.id,
-    type: st.type.toLowerCase() as string,
-    name: st.type as string,
-    order: TYPE_ORDER[st.type] ?? 99,
+    type: typeName.toLowerCase() as string,
+    name: typeName as string,
+    order: TYPE_ORDER[typeName] ?? 99,
     enabled: true,
     status: subTaskStatusToPhaseStatus(st.status),
     dueDate: st.expectedDelivery ?? undefined,
@@ -107,7 +125,8 @@ export function normalizeSubTask(st: any) {
     reason: st.reason ?? undefined,
     notes: "",
     checklist: [] as { id: string; label: string; completed: boolean }[],
-    designs: (st.designs ?? []).map((d: any) => ({ ...d, url: d.url ?? d.urlImage ?? "" })),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    designs: designs.map((d: any) => ({ ...d, url: d.url ?? d.urlImage ?? "" })),
     discoveryData: discovery?.data,
     discoveryMeta: discovery?.meta,
   }
