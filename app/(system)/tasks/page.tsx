@@ -123,6 +123,7 @@ const editSchema = z.object({
   project: z.string().min(2, { message: "O projeto é obrigatório." }),
   priority: z.string().min(2, { message: "A prioridade é obrigatória." }),
   description: z.string().min(2, { message: "A tarefa deve ter uma descrição obrigatória." }),
+  flowIds: z.array(z.number()).optional(),
 })
 
 type Phase = {
@@ -148,6 +149,7 @@ type Task = {
   description?: string
   hasRejection?: boolean
   phases?: { id: string; status: string; enabled: boolean; name: string }[]
+  flows?: { id: number; name: string }[]
 }
 
 type Option = {
@@ -421,6 +423,7 @@ export default function Page() {
       applicant: "",
       priority: "Baixa",
       description: "",
+      flowIds: [],
     },
   })
 
@@ -439,6 +442,7 @@ export default function Page() {
       applicant: task.applicant,
       priority: task.priority,
       description: task.description ?? "",
+      flowIds: (task.flows ?? []).map((f) => f.id),
     })
     setEditingTask(task)
   }
@@ -487,10 +491,20 @@ export default function Page() {
   async function onEditSubmit(values: z.infer<typeof editSchema>) {
     if (!editingTask) return
     try {
+      const originalFlowIds = (editingTask.flows ?? []).map((f) => f.id)
+      const newFlowIds = values.flowIds ?? []
+      const flowIdsToAdd = newFlowIds.filter((id) => !originalFlowIds.includes(id))
+      const flowIdsToRemove = originalFlowIds.filter((id) => !newFlowIds.includes(id))
+
+      const { flowIds: _, ...rest } = values
+      const payload: Record<string, unknown> = { ...rest }
+      if (flowIdsToAdd.length > 0) payload.flowIdsToAdd = flowIdsToAdd
+      if (flowIdsToRemove.length > 0) payload.flowIdsToRemove = flowIdsToRemove
+
       const response = await fetch(`/api/tasks/${editingTask.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(values),
+        body: JSON.stringify(payload),
       })
 
       setEditingTask(null)
@@ -1057,6 +1071,45 @@ export default function Page() {
                       <FormControl>
                         <Textarea {...field} placeholder="Descrição da tarefa..." className="min-h-24" />
                       </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={editForm.control}
+                  name="flowIds"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Fluxos</FormLabel>
+                      <div className="grid grid-cols-2 gap-1 border rounded-lg p-3 bg-muted/30 min-h-12">
+                        {flows.length === 0 ? (
+                          <p className="text-sm text-muted-foreground col-span-2 py-1">Nenhum fluxo disponível</p>
+                        ) : (
+                          flows.map((flow) => {
+                            const flowId = Number(flow.id)
+                            const checked = (field.value ?? []).includes(flowId)
+                            return (
+                              <label
+                                key={flow.id}
+                                className="flex items-center gap-2.5 text-sm cursor-pointer hover:bg-muted/50 px-2 py-1.5 rounded transition-colors"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={(e) => {
+                                    const updated = e.target.checked
+                                      ? [...(field.value ?? []), flowId]
+                                      : (field.value ?? []).filter((id) => id !== flowId)
+                                    field.onChange(updated)
+                                  }}
+                                  className="rounded border-gray-300 cursor-pointer"
+                                />
+                                <span className="font-medium">{flow.name}</span>
+                              </label>
+                            )
+                          })
+                        )}
+                      </div>
                       <FormMessage />
                     </FormItem>
                   )}
