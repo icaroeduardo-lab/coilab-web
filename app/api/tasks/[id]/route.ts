@@ -28,8 +28,8 @@ async function resolveProjectId(name: string): Promise<string | null> {
   return (res.data ?? []).find((p) => p.name.toLowerCase() === name.toLowerCase())?.id ?? null
 }
 
-async function resolveApplicantId(name: string): Promise<string | null> {
-  const res = await apiClient.get<{ data: { id: string; name: string }[] }>("/applicants?limit=200")
+async function resolveApplicantId(name: string): Promise<number | null> {
+  const res = await apiClient.get<{ data: { id: number; name: string }[] }>("/applicants?limit=200")
   return (res.data ?? []).find((a) => a.name.toLowerCase() === name.toLowerCase())?.id ?? null
 }
 
@@ -49,7 +49,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   try {
     const { id } = await params
     const body = await request.json()
-    const { phases, partialPhaseUpdate, status, name, description, project, applicant, priority } = body
+    const {
+      phases, partialPhaseUpdate, status,
+      name, description, project, applicant, priority,
+      flowIdsToAdd, flowIdsToRemove,
+    } = body
 
     // discovery form save
     if (partialPhaseUpdate && Array.isArray(phases) && phases.length > 0) {
@@ -112,6 +116,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (applicant !== undefined) {
       const aid = await resolveApplicantId(applicant)
       if (aid) payload.applicantId = aid
+    }
+    if (flowIdsToAdd !== undefined) {
+      payload.flowIdsToAdd = (flowIdsToAdd as (string | number)[]).map(Number)
+    }
+    if (flowIdsToRemove !== undefined) {
+      payload.flowIdsToRemove = (flowIdsToRemove as (string | number)[]).map(Number)
     }
 
     if (Object.keys(payload).length > 0) {
