@@ -26,8 +26,9 @@ export async function GET(request: Request) {
     if (projectName) {
       const projectId = await resolveProjectId(projectName)
       if (!projectId) return NextResponse.json([])
-      const res = await apiClient.get<{ data: unknown[] }>(`/tasks/project/${projectId}?limit=200`)
-      return NextResponse.json((res.data ?? []).map(normalizeTask))
+      const res = await apiClient.get<unknown[] | { data: unknown[] }>(`/tasks/project/${projectId}?limit=200`)
+      const tasks = Array.isArray(res) ? res : ((res as { data: unknown[] }).data ?? [])
+      return NextResponse.json(tasks.map(normalizeTask))
     }
 
     const res = await apiClient.get<{ data: unknown[] }>("/tasks?limit=200")
