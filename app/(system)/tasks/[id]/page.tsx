@@ -838,7 +838,7 @@ export default function TaskDetailPage() {
   const [isSavingEdit, setIsSavingEdit] = useState(false)
   const [phasesToDelete, setPhasesToDelete] = useState<Set<string>>(new Set())
   const [editForm, setEditForm] = useState<{
-    name: string; description: string; project: string; applicant: string; priority: string
+    name: string; description: string; project: string; applicant: string; priority: string; flowIds: number[]
   } | null>(null)
 
   const { data, isLoading, error, mutate } = useSWR<Task>(
@@ -848,8 +848,10 @@ export default function TaskDetailPage() {
   const { mutate: mutateGlobalTasks } = useSWRConfig()
   const { data: applicantsData } = useSWR<Option[]>("/api/applicants", fetcher)
   const { data: projectsData } = useSWR<Option[]>("/api/projects", fetcher)
+  const { data: flowsData } = useSWR<Option[]>("/api/flows", fetcher)
   const applicants = Array.isArray(applicantsData) ? applicantsData.map(a => ({ ...a, name: a.name.toUpperCase() })) : []
   const projects = Array.isArray(projectsData) ? projectsData.map(p => ({ ...p, name: p.name.toUpperCase() })) : []
+  const flows = Array.isArray(flowsData) ? flowsData : []
 
   const openEdit = () => {
     if (!data) return
@@ -859,6 +861,7 @@ export default function TaskDetailPage() {
       project: data.project?.toUpperCase() ?? "",
       applicant: data.applicant?.toUpperCase() ?? "",
       priority: data.priority,
+      flowIds: (data.flows ?? []).map(f => Number(f.id)),
     })
     setPhasesToDelete(new Set())
     setIsEditOpen(true)
@@ -881,7 +884,17 @@ export default function TaskDetailPage() {
     if (!editForm) return
     setIsSavingEdit(true)
     try {
-      await patchTask(editForm)
+      const originalFlowIds = (data?.flows ?? []).map(f => Number(f.id))
+      const newFlowIds = editForm.flowIds
+      const flowIdsToAdd = newFlowIds.filter(id => !originalFlowIds.includes(id))
+      const flowIdsToRemove = originalFlowIds.filter(id => !newFlowIds.includes(id))
+
+      const { flowIds: _, ...restForm } = editForm
+      const patchBody: Record<string, unknown> = { ...restForm }
+      if (flowIdsToAdd.length > 0) patchBody.flowIdsToAdd = flowIdsToAdd
+      if (flowIdsToRemove.length > 0) patchBody.flowIdsToRemove = flowIdsToRemove
+
+      await patchTask(patchBody)
       if (phasesToDelete.size > 0) {
         const updatedPhases = (data?.phases || []).map(p =>
           phasesToDelete.has(p.id) ? { ...p, enabled: false } : p
@@ -1065,6 +1078,35 @@ export default function TaskDetailPage() {
                         <span className="text-sm">{p}</span>
                       </label>
                     ))}
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Fluxos</label>
+                  <div className="grid grid-cols-2 gap-1 border rounded-lg p-3 bg-muted/30">
+                    {flows.length === 0 ? (
+                      <p className="text-sm text-muted-foreground col-span-2">Nenhum fluxo disponível</p>
+                    ) : (
+                      flows.map(flow => {
+                        const flowId = Number(flow.id)
+                        const checked = editForm.flowIds.includes(flowId)
+                        return (
+                          <label key={flow.id} className="flex items-center gap-2.5 text-sm cursor-pointer hover:bg-muted/50 px-2 py-1.5 rounded transition-colors">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={e => {
+                                const updated = e.target.checked
+                                  ? [...editForm.flowIds, flowId]
+                                  : editForm.flowIds.filter(id => id !== flowId)
+                                setEditForm(f => f ? { ...f, flowIds: updated } : f)
+                              }}
+                              className="rounded border-gray-300 cursor-pointer"
+                            />
+                            <span className="font-medium">{flow.name.toUpperCase()}</span>
+                          </label>
+                        )
+                      })
+                    )}
                   </div>
                 </div>
                 {/* Subtasks list */}
