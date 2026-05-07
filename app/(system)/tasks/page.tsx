@@ -1075,15 +1075,17 @@ export default function Page() {
                     </FormItem>
                   )}
                 />
-                {flows.length > 0 && (
-                  <FormField
-                    control={editForm.control}
-                    name="flowIds"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Fluxos</FormLabel>
-                        <div className="grid grid-cols-2 gap-1 border rounded-lg p-3 bg-muted/30">
-                          {flows.map((flow) => {
+                <FormField
+                  control={editForm.control}
+                  name="flowIds"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Fluxos</FormLabel>
+                      <div className="grid grid-cols-2 gap-1 border rounded-lg p-3 bg-muted/30 min-h-12">
+                        {flows.length === 0 ? (
+                          <p className="text-sm text-muted-foreground col-span-2 py-1">Nenhum fluxo disponível</p>
+                        ) : (
+                          flows.map((flow) => {
                             const flowId = Number(flow.id)
                             const checked = (field.value ?? []).includes(flowId)
                             return (
@@ -1105,13 +1107,13 @@ export default function Page() {
                                 <span className="font-medium">{flow.name}</span>
                               </label>
                             )
-                          })}
-                        </div>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                )}
+                          })
+                        )}
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
                 <div className="flex gap-3 pt-4 border-t">
                   <Button type="submit" className="flex-1" size="lg" disabled={editForm.formState.isSubmitting}>
                     {editForm.formState.isSubmitting ? "Salvando..." : "Salvar Alterações"}
