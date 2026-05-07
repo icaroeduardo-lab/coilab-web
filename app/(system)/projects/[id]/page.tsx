@@ -229,7 +229,7 @@ export default function ProjectDetailPage() {
                   <div className="flex items-center gap-3 min-w-0">
                     {task.taskNumber && (
                       <span className="text-[10px] font-mono text-muted-foreground/60 shrink-0">
-                        #{task.taskNumber}
+                        {task.taskNumber}
                       </span>
                     )}
                     <span className="text-sm font-medium truncate">{task.name}</span>

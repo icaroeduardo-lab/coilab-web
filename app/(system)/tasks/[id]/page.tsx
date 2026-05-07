@@ -974,7 +974,7 @@ export default function TaskDetailPage() {
           <div className="flex items-start justify-between gap-4">
             <div>
               {data.taskNumber && (
-                <span className="text-xs font-mono text-muted-foreground mb-1 block">#{data.taskNumber}</span>
+                <span className="text-xs font-mono text-muted-foreground mb-1 block">{data.taskNumber}</span>
               )}
               <h1 className="text-4xl font-bold tracking-tight">{data.name}</h1>
               <div className="h-0.5 w-12 bg-primary rounded-full mt-2" />
