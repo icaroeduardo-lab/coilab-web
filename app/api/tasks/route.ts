@@ -10,8 +10,8 @@ async function resolveProjectId(name: string): Promise<string | null> {
   return match?.id ?? null
 }
 
-async function resolveApplicantId(name: string): Promise<string | null> {
-  const res = await apiClient.get<{ data: { id: string; name: string }[] }>("/applicants?limit=200")
+async function resolveApplicantId(name: string): Promise<number | null> {
+  const res = await apiClient.get<{ data: { id: number; name: string }[] }>("/applicants?limit=200")
   const match = (res.data ?? []).find(
     (a) => a.name.toLowerCase() === name.toLowerCase(),
   )
@@ -65,7 +65,7 @@ export async function POST(request: Request) {
       projectId,
       applicantId,
       priority: denormalizePriority(priority),
-      flowIds: flows,
+      flowIds: (flows as (string | number)[]).map(Number),
       subTasks,
     })
 
