@@ -91,7 +91,11 @@ import {
 } from "@/components/ui/badge"
 import { DataTable } from "@/components/data-table"
 
-const fetcher = (url: string) => fetch(url).then((res) => res.json())
+const fetcher = async (url: string) => {
+  const res = await fetch(url)
+  if (!res.ok) throw Object.assign(new Error(`Erro ${res.status}`), { status: res.status })
+  return res.json()
+}
 
 const formSchema = z.object({
   name: z.string().min(2, {
@@ -110,7 +114,7 @@ const formSchema = z.object({
     message: "A tarefa deve ter uma descrição obrigatória.",
   }),
   phases: z.array(z.string()),
-  flows: z.array(z.string()).optional(),
+  flows: z.array(z.union([z.string(), z.number()])).optional(),
 })
 
 const editSchema = z.object({
@@ -119,6 +123,7 @@ const editSchema = z.object({
   project: z.string().min(2, { message: "O projeto é obrigatório." }),
   priority: z.string().min(2, { message: "A prioridade é obrigatória." }),
   description: z.string().min(2, { message: "A tarefa deve ter uma descrição obrigatória." }),
+  flowIds: z.array(z.number()).optional(),
 })
 
 type Phase = {
@@ -144,6 +149,7 @@ type Task = {
   description?: string
   hasRejection?: boolean
   phases?: { id: string; status: string; enabled: boolean; name: string }[]
+  flows?: { id: number; name: string }[]
 }
 
 type Option = {
@@ -285,7 +291,7 @@ function TaskCard({
         >
           <CardHeader className="p-4 pb-2 pr-10">
             {task.taskNumber && (
-              <span className="text-[10px] font-mono text-muted-foreground/70 mb-0.5">#{task.taskNumber}</span>
+              <span className="text-[10px] font-mono text-muted-foreground/70 mb-0.5">{task.taskNumber}</span>
             )}
             <CardTitle className="text-sm font-bold">{task.name}</CardTitle>
             <CardDescription className="text-xs">{task.project}</CardDescription>
@@ -417,6 +423,7 @@ export default function Page() {
       applicant: "",
       priority: "Baixa",
       description: "",
+      flowIds: [],
     },
   })
 
@@ -435,6 +442,7 @@ export default function Page() {
       applicant: task.applicant,
       priority: task.priority,
       description: task.description ?? "",
+      flowIds: (task.flows ?? []).map((f) => f.id),
     })
     setEditingTask(task)
   }
@@ -483,10 +491,20 @@ export default function Page() {
   async function onEditSubmit(values: z.infer<typeof editSchema>) {
     if (!editingTask) return
     try {
+      const originalFlowIds = (editingTask.flows ?? []).map((f) => f.id)
+      const newFlowIds = values.flowIds ?? []
+      const flowIdsToAdd = newFlowIds.filter((id) => !originalFlowIds.includes(id))
+      const flowIdsToRemove = originalFlowIds.filter((id) => !newFlowIds.includes(id))
+
+      const { flowIds: _, ...rest } = values
+      const payload: Record<string, unknown> = { ...rest }
+      if (flowIdsToAdd.length > 0) payload.flowIdsToAdd = flowIdsToAdd
+      if (flowIdsToRemove.length > 0) payload.flowIdsToRemove = flowIdsToRemove
+
       const response = await fetch(`/api/tasks/${editingTask.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(values),
+        body: JSON.stringify(payload),
       })
 
       setEditingTask(null)
@@ -528,7 +546,7 @@ export default function Page() {
       header: "Nº",
       cell: ({ row }) => (
         <span className="text-xs font-mono text-muted-foreground whitespace-nowrap">
-          {row.getValue("taskNumber") ? `#${row.getValue("taskNumber")}` : "—"}
+          {row.getValue("taskNumber") ? row.getValue("taskNumber") : "—"}
         </span>
       ),
     },
@@ -870,11 +888,11 @@ export default function Page() {
                                   <label key={flow.id} className="flex items-center gap-3 text-sm cursor-pointer hover:bg-muted/50 p-2 rounded transition-colors">
                                     <input
                                       type="checkbox"
-                                      checked={field.value?.includes(flow.id) || false}
+                                      checked={field.value?.map(String).includes(String(flow.id)) || false}
                                       onChange={(e) => {
                                         const updated = e.target.checked
                                           ? [...(field.value || []), flow.id]
-                                          : (field.value || []).filter((id: string) => id !== flow.id)
+                                          : (field.value || []).filter((id) => String(id) !== String(flow.id))
                                         field.onChange(updated)
                                       }}
                                       className="rounded border-gray-300 cursor-pointer"
@@ -1053,6 +1071,45 @@ export default function Page() {
                       <FormControl>
                         <Textarea {...field} placeholder="Descrição da tarefa..." className="min-h-24" />
                       </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={editForm.control}
+                  name="flowIds"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Fluxos</FormLabel>
+                      <div className="grid grid-cols-2 gap-1 border rounded-lg p-3 bg-muted/30 min-h-12">
+                        {flows.length === 0 ? (
+                          <p className="text-sm text-muted-foreground col-span-2 py-1">Nenhum fluxo disponível</p>
+                        ) : (
+                          flows.map((flow) => {
+                            const flowId = Number(flow.id)
+                            const checked = (field.value ?? []).includes(flowId)
+                            return (
+                              <label
+                                key={flow.id}
+                                className="flex items-center gap-2.5 text-sm cursor-pointer hover:bg-muted/50 px-2 py-1.5 rounded transition-colors"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={(e) => {
+                                    const updated = e.target.checked
+                                      ? [...(field.value ?? []), flowId]
+                                      : (field.value ?? []).filter((id) => id !== flowId)
+                                    field.onChange(updated)
+                                  }}
+                                  className="rounded border-gray-300 cursor-pointer"
+                                />
+                                <span className="font-medium">{flow.name}</span>
+                              </label>
+                            )
+                          })
+                        )}
+                      </div>
                       <FormMessage />
                     </FormItem>
                   )}
