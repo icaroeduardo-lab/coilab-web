@@ -25,6 +25,8 @@ import { z } from "zod"
 
 const issueCompleteSchema = z.object({
   title: z.string().min(1, "Título é obrigatório"),
+  url: z.string().min(1, "URL é obrigatória para concluir"),
+  flowId: z.string().min(1, "Fluxo é obrigatório para concluir"),
   sprint: z.string().min(1, "Sprint é obrigatório para concluir"),
   completionDate: z.string().min(1, "Data de conclusão é obrigatória para concluir"),
 })
@@ -948,6 +950,8 @@ function DevelopmentPhaseTab({
     if (!editingIssueId) return
     const result = issueCompleteSchema.safeParse({
       title: editForm.title,
+      url: editForm.url,
+      flowId: editForm.flowId,
       sprint: editForm.sprint,
       completionDate: editForm.completionDate,
     })
@@ -1096,21 +1100,23 @@ function DevelopmentPhaseTab({
                         <td className="px-4 py-2" colSpan={5}>
                           <div className="space-y-2">
                             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                              <div className="sm:col-span-2">
+                              <div className="sm:col-span-2 space-y-0.5">
                                 <Input
                                   value={editForm.title}
-                                  onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))}
+                                  onChange={e => { setEditForm(f => ({ ...f, title: e.target.value })); setEditErrors(prev => ({ ...prev, title: "" })) }}
                                   placeholder="Título *"
-                                  className="h-7 text-sm"
+                                  className={`h-7 text-sm ${editErrors.title ? "border-destructive focus-visible:ring-destructive" : ""}`}
                                 />
+                                {editErrors.title && <p className="text-xs text-destructive">{editErrors.title}</p>}
                               </div>
-                              <div className="sm:col-span-2">
+                              <div className="sm:col-span-2 space-y-0.5">
                                 <Input
                                   value={editForm.url}
-                                  onChange={e => setEditForm(f => ({ ...f, url: e.target.value }))}
-                                  placeholder="URL (opcional)"
-                                  className="h-7 text-sm"
+                                  onChange={e => { setEditForm(f => ({ ...f, url: e.target.value })); setEditErrors(prev => ({ ...prev, url: "" })) }}
+                                  placeholder="URL"
+                                  className={`h-7 text-sm ${editErrors.url ? "border-destructive focus-visible:ring-destructive" : ""}`}
                                 />
+                                {editErrors.url && <p className="text-xs text-destructive">{editErrors.url}</p>}
                               </div>
                               <div className="space-y-0.5">
                                 <Input
@@ -1121,16 +1127,19 @@ function DevelopmentPhaseTab({
                                 />
                                 {editErrors.sprint && <p className="text-xs text-destructive">{editErrors.sprint}</p>}
                               </div>
-                              <select
-                                value={editForm.flowId}
-                                onChange={e => setEditForm(f => ({ ...f, flowId: e.target.value }))}
-                                className="h-7 px-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                              >
-                                <option value="">Selecionar fluxo...</option>
-                                {flows.map(fl => (
-                                  <option key={fl.id} value={fl.id}>{fl.name.toUpperCase()}</option>
-                                ))}
-                              </select>
+                              <div className="space-y-0.5">
+                                <select
+                                  value={editForm.flowId}
+                                  onChange={e => { setEditForm(f => ({ ...f, flowId: e.target.value })); setEditErrors(prev => ({ ...prev, flowId: "" })) }}
+                                  className={`h-7 w-full px-2 border rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary ${editErrors.flowId ? "border-destructive" : "border-input"}`}
+                                >
+                                  <option value="">Selecionar fluxo...</option>
+                                  {flows.map(fl => (
+                                    <option key={fl.id} value={fl.id}>{fl.name.toUpperCase()}</option>
+                                  ))}
+                                </select>
+                                {editErrors.flowId && <p className="text-xs text-destructive">{editErrors.flowId}</p>}
+                              </div>
                               <div className="space-y-0.5">
                                 <label className="text-xs text-muted-foreground">Data de conclusão</label>
                                 <Input
