@@ -859,42 +859,35 @@ function DevelopmentPhaseTab({
   const [cancelReason, setCancelReason] = useState("")
   const [isAddingIssue, setIsAddingIssue] = useState(false)
   const [isSavingIssue, setIsSavingIssue] = useState(false)
-  const [issueForm, setIssueForm] = useState({
-    title: "",
-    url: "",
-    flowId: "",
-    sprint: "",
-    completionDate: "",
-  })
+  const [editingIssueId, setEditingIssueId] = useState<string | null>(null)
+  const [isSavingEdit, setIsSavingEdit] = useState(false)
+  const [issueForm, setIssueForm] = useState({ title: "", url: "", flowId: "", sprint: "", completionDate: "" })
+  const [editForm, setEditForm] = useState({ title: "", url: "", flowId: "", sprint: "", completionDate: "" })
 
   const { mutate: mutateTask } = useSWR<Task>(`/api/tasks/${taskId}`, fetcher)
   const { data: flowsData } = useSWR<FlowOption[]>("/api/flows", fetcher)
   const issues: Issue[] = phase.issues ?? []
   const flows: FlowOption[] = Array.isArray(flowsData) ? flowsData : []
 
+  const buildIssueBody = (form: typeof issueForm): Record<string, unknown> => {
+    const body: Record<string, unknown> = { title: form.title.trim() }
+    if (form.url.trim()) body.url = form.url.trim()
+    if (form.flowId) body.flowId = Number(form.flowId)
+    if (form.sprint.trim()) body.sprint = form.sprint.trim()
+    if (form.completionDate) body.completionDate = form.completionDate
+    return body
+  }
+
   const handleAddIssue = async () => {
-    if (!issueForm.title.trim()) {
-      toast.error("Título é obrigatório")
-      return
-    }
+    if (!issueForm.title.trim()) { toast.error("Título é obrigatório"); return }
     setIsSavingIssue(true)
     try {
-      const body: Record<string, unknown> = { title: issueForm.title.trim() }
-      if (issueForm.url.trim()) body.url = issueForm.url.trim()
-      if (issueForm.flowId) body.flowId = Number(issueForm.flowId)
-      if (issueForm.sprint.trim()) body.sprint = issueForm.sprint.trim()
-      if (issueForm.completionDate) body.completionDate = issueForm.completionDate
-
       const res = await fetch(`/api/tasks/${taskId}/subtasks/${phase.id}/issues`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify(buildIssueBody(issueForm)),
       })
-      if (!res.ok) {
-        const json = await res.json().catch(() => ({}))
-        throw new Error(json.error || "Erro ao adicionar issue")
-      }
-
+      if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || "Erro ao adicionar issue") }
       await mutateTask()
       setIsAddingIssue(false)
       setIssueForm({ title: "", url: "", flowId: "", sprint: "", completionDate: "" })
@@ -903,6 +896,38 @@ function DevelopmentPhaseTab({
       toast.error(e.message || "Erro ao adicionar issue")
     } finally {
       setIsSavingIssue(false)
+    }
+  }
+
+  const openEdit = (issue: Issue) => {
+    setEditingIssueId(issue.id)
+    setEditForm({
+      title: issue.title,
+      url: issue.url ?? "",
+      flowId: issue.flowId ? String(issue.flowId) : "",
+      sprint: issue.sprint ?? "",
+      completionDate: issue.completionDate ?? "",
+    })
+  }
+
+  const handleSaveEdit = async () => {
+    if (!editForm.title.trim()) { toast.error("Título é obrigatório"); return }
+    if (!editingIssueId) return
+    setIsSavingEdit(true)
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/subtasks/${phase.id}/issues/${editingIssueId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(buildIssueBody(editForm)),
+      })
+      if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || "Erro ao salvar issue") }
+      await mutateTask()
+      setEditingIssueId(null)
+      toast.success("Issue atualizada")
+    } catch (e: any) {
+      toast.error(e.message || "Erro ao salvar issue")
+    } finally {
+      setIsSavingEdit(false)
     }
   }
 
@@ -1017,11 +1042,77 @@ function DevelopmentPhaseTab({
                   <th className="text-left text-xs font-medium text-muted-foreground px-4 py-2.5">Sprint</th>
                   <th className="text-left text-xs font-medium text-muted-foreground px-4 py-2.5">Fluxo</th>
                   <th className="text-left text-xs font-medium text-muted-foreground px-4 py-2.5">Status</th>
+                  {!isReadOnly && <th className="px-4 py-2.5 w-8" />}
                 </tr>
               </thead>
               <tbody className="divide-y">
                 {issues.map((issue) => {
                   const flow = flows.find(f => Number(f.id) === issue.flowId)
+                  const isEditing = editingIssueId === issue.id
+
+                  if (isEditing) {
+                    return (
+                      <tr key={issue.id} className="bg-muted/10">
+                        <td className="px-4 py-2" colSpan={5}>
+                          <div className="space-y-2">
+                            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                              <div className="sm:col-span-2">
+                                <Input
+                                  value={editForm.title}
+                                  onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))}
+                                  placeholder="Título *"
+                                  className="h-7 text-sm"
+                                />
+                              </div>
+                              <div className="sm:col-span-2">
+                                <Input
+                                  value={editForm.url}
+                                  onChange={e => setEditForm(f => ({ ...f, url: e.target.value }))}
+                                  placeholder="URL (opcional)"
+                                  className="h-7 text-sm"
+                                />
+                              </div>
+                              <Input
+                                value={editForm.sprint}
+                                onChange={e => setEditForm(f => ({ ...f, sprint: e.target.value }))}
+                                placeholder="Sprint"
+                                className="h-7 text-sm"
+                              />
+                              <select
+                                value={editForm.flowId}
+                                onChange={e => setEditForm(f => ({ ...f, flowId: e.target.value }))}
+                                className="h-7 px-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                              >
+                                <option value="">Selecionar fluxo...</option>
+                                {flows.map(fl => (
+                                  <option key={fl.id} value={fl.id}>{fl.name.toUpperCase()}</option>
+                                ))}
+                              </select>
+                              <div className="space-y-0.5">
+                                <label className="text-xs text-muted-foreground">Data de conclusão</label>
+                                <Input
+                                  type="date"
+                                  value={editForm.completionDate}
+                                  onChange={e => setEditForm(f => ({ ...f, completionDate: e.target.value }))}
+                                  className="h-7 text-sm"
+                                />
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              <Button size="sm" disabled={isSavingEdit} onClick={handleSaveEdit} className="gap-1.5 h-7 px-3 text-xs">
+                                {isSavingEdit ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                                Salvar
+                              </Button>
+                              <Button size="sm" variant="outline" disabled={isSavingEdit} onClick={() => setEditingIssueId(null)} className="h-7 px-3 text-xs">
+                                Cancelar
+                              </Button>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  }
+
                   return (
                     <tr key={issue.id} className="hover:bg-muted/30 transition-colors">
                       <td className="px-4 py-3">
@@ -1044,6 +1135,18 @@ function DevelopmentPhaseTab({
                       <td className="px-4 py-3">
                         <IssueBadge status={issue.status} />
                       </td>
+                      {!isReadOnly && (
+                        <td className="px-4 py-3">
+                          <button
+                            type="button"
+                            onClick={() => openEdit(issue)}
+                            className="p-1 rounded text-muted-foreground/50 hover:text-foreground hover:bg-muted transition-colors"
+                            title="Editar issue"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   )
                 })}
