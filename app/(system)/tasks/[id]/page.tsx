@@ -43,6 +43,7 @@ type Phase = {
   notes?: string
   checklist: { id: string; label: string; completed: boolean }[]
   designs?: Design[]
+  issues?: Issue[]
   discoveryData?: any
   discoveryMeta?: Record<string, { userId: string; filledAt: string } | null>
 }
@@ -821,12 +822,13 @@ type Issue = {
   title: string
   url?: string
   flowId?: number
-  completionDate?: string | null
+  status: boolean
   sprint?: string
+  completionDate?: string
 }
 
-function IssueBadge({ completionDate }: { completionDate?: string | null }) {
-  if (completionDate) {
+function IssueBadge({ status }: { status: boolean }) {
+  if (status) {
     return (
       <Badge className="gap-1 bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800">
         <Check className="h-3 w-3" />
@@ -865,12 +867,9 @@ function DevelopmentPhaseTab({
     completionDate: "",
   })
 
-  const { data: issuesData, mutate: mutateIssues } = useSWR<Issue[]>(
-    `/api/tasks/${taskId}/subtasks/${phase.id}/issues`,
-    fetcher
-  )
+  const { mutate: mutateTask } = useSWR<Task>(`/api/tasks/${taskId}`, fetcher)
   const { data: flowsData } = useSWR<FlowOption[]>("/api/flows", fetcher)
-  const issues: Issue[] = Array.isArray(issuesData) ? issuesData : []
+  const issues: Issue[] = phase.issues ?? []
   const flows: FlowOption[] = Array.isArray(flowsData) ? flowsData : []
 
   const handleAddIssue = async () => {
@@ -886,13 +885,17 @@ function DevelopmentPhaseTab({
       if (issueForm.sprint.trim()) body.sprint = issueForm.sprint.trim()
       if (issueForm.completionDate) body.completionDate = issueForm.completionDate
 
-      await fetch(`/api/tasks/${taskId}/subtasks/${phase.id}/issues`, {
+      const res = await fetch(`/api/tasks/${taskId}/subtasks/${phase.id}/issues`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       })
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}))
+        throw new Error(json.error || "Erro ao adicionar issue")
+      }
 
-      await mutateIssues()
+      await mutateTask()
       setIsAddingIssue(false)
       setIssueForm({ title: "", url: "", flowId: "", sprint: "", completionDate: "" })
       toast.success("Issue adicionada")
@@ -1039,7 +1042,7 @@ function DevelopmentPhaseTab({
                       <td className="px-4 py-3 text-muted-foreground">{issue.sprint || "—"}</td>
                       <td className="px-4 py-3 text-muted-foreground">{flow ? flow.name.toUpperCase() : "—"}</td>
                       <td className="px-4 py-3">
-                        <IssueBadge completionDate={issue.completionDate} />
+                        <IssueBadge status={issue.status} />
                       </td>
                     </tr>
                   )
