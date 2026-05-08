@@ -1136,7 +1136,8 @@ function DevelopmentPhaseTab({
                   <th className="text-left text-xs font-medium text-muted-foreground px-4 py-2.5">Sprint</th>
                   <th className="text-left text-xs font-medium text-muted-foreground px-4 py-2.5">Fluxo</th>
                   <th className="text-left text-xs font-medium text-muted-foreground px-4 py-2.5">Status</th>
-                  {!isReadOnly && <th className="px-4 py-2.5 w-8" />}
+                  {!isReadOnly && <th className="px-2 py-2.5 w-8" />}
+                  {!isReadOnly && <th className="px-2 py-2.5 w-8" />}
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -1147,7 +1148,7 @@ function DevelopmentPhaseTab({
                   if (isEditing) {
                     return (
                       <tr key={issue.id} className="bg-muted/10">
-                        <td className="px-4 py-2" colSpan={5}>
+                        <td className="px-4 py-2" colSpan={6}>
                           <div className="space-y-2">
                             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                               <div className="sm:col-span-2 space-y-0.5">
@@ -1245,27 +1246,29 @@ function DevelopmentPhaseTab({
                         <IssueBadge status={issue.status} />
                       </td>
                       {!isReadOnly && (
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-1">
-                            {!issue.status && (
-                              <button
-                                type="button"
-                                onClick={() => handleQuickComplete(issue)}
-                                className="p-1 rounded text-muted-foreground/50 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors"
-                                title="Finalizar issue"
-                              >
-                                <CheckCircle2 className="h-3.5 w-3.5" />
-                              </button>
-                            )}
+                        <td className="px-2 py-3">
+                          {!issue.status && (
                             <button
                               type="button"
-                              onClick={() => openEdit(issue)}
-                              className="p-1 rounded text-muted-foreground/50 hover:text-foreground hover:bg-muted transition-colors"
-                              title="Editar issue"
+                              onClick={() => handleQuickComplete(issue)}
+                              className="p-1 rounded text-amber-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors"
+                              title="Finalizar issue"
                             >
-                              <Pencil className="h-3.5 w-3.5" />
+                              <CheckCircle2 className="h-3.5 w-3.5" />
                             </button>
-                          </div>
+                          )}
+                        </td>
+                      )}
+                      {!isReadOnly && (
+                        <td className="px-2 py-3">
+                          <button
+                            type="button"
+                            onClick={() => openEdit(issue)}
+                            className="p-1 rounded text-muted-foreground/50 hover:text-foreground hover:bg-muted transition-colors"
+                            title="Editar issue"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
                         </td>
                       )}
                     </tr>
