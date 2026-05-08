@@ -1247,16 +1247,15 @@ function DevelopmentPhaseTab({
                       </td>
                       {!isReadOnly && (
                         <td className="px-2 py-3">
-                          {!issue.status && (
-                            <button
-                              type="button"
-                              onClick={() => handleQuickComplete(issue)}
-                              className="p-1 rounded text-amber-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors"
-                              title="Finalizar issue"
-                            >
-                              <CheckCircle2 className="h-3.5 w-3.5" />
-                            </button>
-                          )}
+                          <button
+                            type="button"
+                            onClick={() => !issue.status && handleQuickComplete(issue)}
+                            disabled={issue.status}
+                            className={`p-1 rounded transition-colors ${issue.status ? "text-muted-foreground/30 cursor-not-allowed" : "text-amber-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30"}`}
+                            title={issue.status ? "Issue já concluída" : "Finalizar issue"}
+                          >
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                          </button>
                         </td>
                       )}
                       {!isReadOnly && (
