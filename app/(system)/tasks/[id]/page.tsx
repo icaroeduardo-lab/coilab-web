@@ -870,6 +870,7 @@ function DevelopmentPhaseTab({
   const [isSavingEdit, setIsSavingEdit] = useState(false)
   const [issueForm, setIssueForm] = useState({ title: "", url: "", flowId: "", sprint: "", completionDate: "" })
   const [editForm, setEditForm] = useState({ title: "", url: "", flowId: "", sprint: "", completionDate: "" })
+  const [editErrors, setEditErrors] = useState<Record<string, string>>({})
 
   const { mutate: mutateTask } = useSWR<Task>(`/api/tasks/${taskId}`, fetcher)
   const { data: flowsData } = useSWR<FlowOption[]>("/api/flows", fetcher)
@@ -908,6 +909,7 @@ function DevelopmentPhaseTab({
 
   const openEdit = (issue: Issue) => {
     setEditingIssueId(issue.id)
+    setEditErrors({})
     setEditForm({
       title: issue.title,
       url: issue.url ?? "",
@@ -950,9 +952,12 @@ function DevelopmentPhaseTab({
       completionDate: editForm.completionDate,
     })
     if (!result.success) {
-      result.error.errors.forEach(e => toast.error(e.message))
+      const errs: Record<string, string> = {}
+      result.error.errors.forEach(e => { if (e.path[0]) errs[e.path[0] as string] = e.message })
+      setEditErrors(errs)
       return
     }
+    setEditErrors({})
     setIsSavingEdit(true)
     try {
       await patchIssue(editingIssueId, { ...buildIssueBody(editForm), status: true })
@@ -1107,12 +1112,15 @@ function DevelopmentPhaseTab({
                                   className="h-7 text-sm"
                                 />
                               </div>
-                              <Input
-                                value={editForm.sprint}
-                                onChange={e => setEditForm(f => ({ ...f, sprint: e.target.value }))}
-                                placeholder="Sprint"
-                                className="h-7 text-sm"
-                              />
+                              <div className="space-y-0.5">
+                                <Input
+                                  value={editForm.sprint}
+                                  onChange={e => { setEditForm(f => ({ ...f, sprint: e.target.value })); setEditErrors(prev => ({ ...prev, sprint: "" })) }}
+                                  placeholder="Sprint"
+                                  className={`h-7 text-sm ${editErrors.sprint ? "border-destructive focus-visible:ring-destructive" : ""}`}
+                                />
+                                {editErrors.sprint && <p className="text-xs text-destructive">{editErrors.sprint}</p>}
+                              </div>
                               <select
                                 value={editForm.flowId}
                                 onChange={e => setEditForm(f => ({ ...f, flowId: e.target.value }))}
@@ -1128,9 +1136,10 @@ function DevelopmentPhaseTab({
                                 <Input
                                   type="date"
                                   value={editForm.completionDate}
-                                  onChange={e => setEditForm(f => ({ ...f, completionDate: e.target.value }))}
-                                  className="h-7 text-sm"
+                                  onChange={e => { setEditForm(f => ({ ...f, completionDate: e.target.value })); setEditErrors(prev => ({ ...prev, completionDate: "" })) }}
+                                  className={`h-7 text-sm ${editErrors.completionDate ? "border-destructive focus-visible:ring-destructive" : ""}`}
                                 />
+                                {editErrors.completionDate && <p className="text-xs text-destructive">{editErrors.completionDate}</p>}
                               </div>
                             </div>
                             <div className="flex gap-2">
