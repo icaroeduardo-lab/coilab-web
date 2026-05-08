@@ -117,6 +117,7 @@ export function normalizeSubTask(st: any) {
   const metadata = st.metadata ?? {}
   const discovery = mapBackendDiscovery(metadata.form ?? st.discoveryForm)
   const designs = metadata.designs ?? st.designs ?? []
+  const issues = metadata.issues ?? []
   return {
     id: st.id,
     type: typeName.toLowerCase() as string,
@@ -132,6 +133,8 @@ export function normalizeSubTask(st: any) {
     checklist: [] as { id: string; label: string; completed: boolean }[],
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     designs: designs.map((d: any) => ({ ...d, url: d.url ?? d.urlImage ?? "" })),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    issues: issues as { id: string; title: string; url?: string; flowId?: number; status: boolean; sprint?: string; completionDate?: string }[],
     discoveryData: discovery?.data,
     discoveryMeta: discovery?.meta,
   }

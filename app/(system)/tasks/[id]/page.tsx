@@ -2,7 +2,7 @@
 
 import { useRouter, useParams, notFound } from "next/navigation"
 import { useState } from "react"
-import { ArrowLeft, AlertCircle, Loader2, User, Calendar, Plus, Trash2, Check, PlayCircle, CheckCircle2, RotateCcw, Clock, Save, Pencil, XCircle } from "lucide-react"
+import { ArrowLeft, AlertCircle, Loader2, User, Calendar, Plus, Trash2, Check, PlayCircle, CheckCircle2, RotateCcw, Clock, Save, Pencil, XCircle, ExternalLink } from "lucide-react"
 import useSWR, { useSWRConfig } from "swr"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -17,10 +17,20 @@ import { ptBR } from "date-fns/locale"
 import DesignManager, { Design } from "@/components/design-manager"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "sonner"
+import { z } from "zod"
+
+const issueCompleteSchema = z.object({
+  title: z.string().min(1, "Título é obrigatório"),
+  url: z.string().min(1, "URL é obrigatória para concluir"),
+  flowId: z.string().min(1, "Fluxo é obrigatório para concluir"),
+  sprint: z.string().min(1, "Sprint é obrigatório para concluir"),
+  completionDate: z.string().min(1, "Data de conclusão é obrigatória para concluir"),
+})
 const fetcher = async (url: string) => {
   const r = await fetch(url)
   if (!r.ok) {
@@ -43,6 +53,7 @@ type Phase = {
   notes?: string
   checklist: { id: string; label: string; completed: boolean }[]
   designs?: Design[]
+  issues?: Issue[]
   discoveryData?: any
   discoveryMeta?: Record<string, { userId: string; filledAt: string } | null>
 }
@@ -816,6 +827,600 @@ function DesignPhaseTab({
   )
 }
 
+type Issue = {
+  id: string
+  title: string
+  url?: string
+  flowId?: number
+  status: boolean
+  sprint?: string
+  completionDate?: string
+}
+
+function IssueBadge({ status }: { status: boolean }) {
+  if (status) {
+    return (
+      <Badge className="gap-1 bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800">
+        <Check className="h-3 w-3" />
+        Concluída
+      </Badge>
+    )
+  }
+  return (
+    <Badge className="gap-1 bg-sky-100 text-sky-700 border border-sky-200 dark:bg-sky-950/30 dark:text-sky-400 dark:border-sky-800">
+      Aberta
+    </Badge>
+  )
+}
+
+type FlowOption = { id: string; name: string }
+
+function DevelopmentPhaseTab({
+  phase,
+  taskId,
+  onPhaseUpdate,
+}: {
+  phase: Phase
+  taskId: string
+  onPhaseUpdate: (phases: Phase[]) => void
+}) {
+  const { isLoading, callPhaseAction } = usePhaseActions(phase, taskId, onPhaseUpdate)
+  const [isCancelOpen, setIsCancelOpen] = useState(false)
+  const [cancelReason, setCancelReason] = useState("")
+  const [isAddingIssue, setIsAddingIssue] = useState(false)
+  const [isSavingIssue, setIsSavingIssue] = useState(false)
+  const [editingIssueId, setEditingIssueId] = useState<string | null>(null)
+  const [isSavingEdit, setIsSavingEdit] = useState(false)
+  const [issueForm, setIssueForm] = useState({ title: "", url: "", flowId: "", sprint: "", completionDate: "" })
+  const [editForm, setEditForm] = useState({ title: "", url: "", flowId: "", sprint: "", completionDate: "" })
+  const [editErrors, setEditErrors] = useState<Record<string, string>>({})
+  const [completingIssue, setCompletingIssue] = useState<Issue | null>(null)
+  const [completeForm, setCompleteForm] = useState({ title: "", url: "", flowId: "", sprint: "", completionDate: "" })
+  const [completeErrors, setCompleteErrors] = useState<Record<string, string>>({})
+  const [isSavingComplete, setIsSavingComplete] = useState(false)
+
+  const { mutate: mutateTask } = useSWR<Task>(`/api/tasks/${taskId}`, fetcher)
+  const { data: flowsData } = useSWR<FlowOption[]>("/api/flows", fetcher)
+  const issues: Issue[] = phase.issues ?? []
+  const flows: FlowOption[] = Array.isArray(flowsData) ? flowsData : []
+
+  const buildIssueBody = (form: typeof issueForm): Record<string, unknown> => {
+    const body: Record<string, unknown> = { title: form.title.trim() }
+    if (form.url.trim()) body.url = form.url.trim()
+    if (form.flowId) body.flowId = Number(form.flowId)
+    if (form.sprint.trim()) body.sprint = form.sprint.trim()
+    if (form.completionDate) body.completionDate = form.completionDate
+    return body
+  }
+
+  const handleAddIssue = async () => {
+    if (!issueForm.title.trim()) { toast.error("Título é obrigatório"); return }
+    setIsSavingIssue(true)
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/subtasks/${phase.id}/issues`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(buildIssueBody(issueForm)),
+      })
+      if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || "Erro ao adicionar issue") }
+      await mutateTask()
+      setIsAddingIssue(false)
+      setIssueForm({ title: "", url: "", flowId: "", sprint: "", completionDate: "" })
+      toast.success("Issue adicionada")
+    } catch (e: any) {
+      toast.error(e.message || "Erro ao adicionar issue")
+    } finally {
+      setIsSavingIssue(false)
+    }
+  }
+
+  const openEdit = (issue: Issue) => {
+    setEditingIssueId(issue.id)
+    setEditErrors({})
+    setEditForm({
+      title: issue.title,
+      url: issue.url ?? "",
+      flowId: issue.flowId ? String(issue.flowId) : "",
+      sprint: issue.sprint ?? "",
+      completionDate: issue.completionDate ?? "",
+    })
+  }
+
+  const patchIssue = async (issueId: string, body: Record<string, unknown>) => {
+    const res = await fetch(`/api/tasks/${taskId}/subtasks/${phase.id}/issues/${issueId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    })
+    if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || "Erro ao salvar issue") }
+  }
+
+  const handleSaveEdit = async () => {
+    if (!editForm.title.trim()) { toast.error("Título é obrigatório"); return }
+    if (!editingIssueId) return
+    setIsSavingEdit(true)
+    try {
+      await patchIssue(editingIssueId, buildIssueBody(editForm))
+      await mutateTask()
+      setEditingIssueId(null)
+      toast.success("Issue atualizada")
+    } catch (e: any) {
+      toast.error(e.message || "Erro ao salvar issue")
+    } finally {
+      setIsSavingEdit(false)
+    }
+  }
+
+  const handleCompleteIssue = async () => {
+    if (!editingIssueId) return
+    const result = issueCompleteSchema.safeParse({
+      title: editForm.title,
+      url: editForm.url,
+      flowId: editForm.flowId,
+      sprint: editForm.sprint,
+      completionDate: editForm.completionDate,
+    })
+    if (!result.success) {
+      const errs: Record<string, string> = {}
+      result.error.errors.forEach(e => { if (e.path[0]) errs[e.path[0] as string] = e.message })
+      setEditErrors(errs)
+      return
+    }
+    setEditErrors({})
+    setIsSavingEdit(true)
+    try {
+      await patchIssue(editingIssueId, { ...buildIssueBody(editForm), status: true })
+      await mutateTask()
+      setEditingIssueId(null)
+      toast.success("Issue concluída")
+    } catch (e: any) {
+      toast.error(e.message || "Erro ao concluir issue")
+    } finally {
+      setIsSavingEdit(false)
+    }
+  }
+
+  const handleQuickComplete = (issue: Issue) => {
+    const result = issueCompleteSchema.safeParse({
+      title: issue.title,
+      url: issue.url ?? "",
+      flowId: issue.flowId ? String(issue.flowId) : "",
+      sprint: issue.sprint ?? "",
+      completionDate: issue.completionDate ?? "",
+    })
+    if (result.success) {
+      patchIssue(issue.id, { status: true }).then(() => mutateTask()).catch(e => toast.error(e.message || "Erro ao concluir issue"))
+      return
+    }
+    setCompleteErrors({})
+    setCompleteForm({
+      title: issue.title,
+      url: issue.url ?? "",
+      flowId: issue.flowId ? String(issue.flowId) : "",
+      sprint: issue.sprint ?? "",
+      completionDate: issue.completionDate ?? "",
+    })
+    setCompletingIssue(issue)
+  }
+
+  const handleDialogComplete = async () => {
+    if (!completingIssue) return
+    const result = issueCompleteSchema.safeParse(completeForm)
+    if (!result.success) {
+      const errs: Record<string, string> = {}
+      result.error.errors.forEach(e => { if (e.path[0]) errs[e.path[0] as string] = e.message })
+      setCompleteErrors(errs)
+      return
+    }
+    setIsSavingComplete(true)
+    try {
+      await patchIssue(completingIssue.id, { ...buildIssueBody(completeForm), status: true })
+      await mutateTask()
+      setCompletingIssue(null)
+      toast.success("Issue concluída")
+    } catch (e: any) {
+      toast.error(e.message || "Erro ao concluir issue")
+    } finally {
+      setIsSavingComplete(false)
+    }
+  }
+
+  const isReadOnly = ["completed", "approved", "rejected"].includes(phase.status)
+
+  if (phase.status === "not_started") {
+    return (
+      <div className="flex items-center gap-3 p-4 rounded-lg border border-dashed">
+        <div className="flex-1">
+          <p className="text-sm font-medium">Desenvolvimento</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Clique em Iniciar para começar o desenvolvimento</p>
+        </div>
+        <Button onClick={() => callPhaseAction("start")} disabled={isLoading} className="gap-2 shrink-0">
+          {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
+          Iniciar
+        </Button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Status bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-lg bg-muted/40 border">
+        <div className="flex flex-wrap gap-4 text-xs">
+          <div className="flex items-center gap-1.5">
+            <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-muted-foreground">Entrega prevista:</span>
+            <span className="font-medium">{fmtDate(phase.dueDate)}</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <PlayCircle className="h-3.5 w-3.5 text-sky-500" />
+            <span className="text-muted-foreground">Início:</span>
+            <span className="font-medium">{fmtDate(phase.startedAt)}</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+            <span className="text-muted-foreground">Conclusão:</span>
+            <span className="font-medium">{fmtDate(phase.completedAt)}</span>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          {(phase.status === "approved" || phase.status === "rejected") ? (
+            <Badge variant="outline" className="text-xs text-muted-foreground">Fase encerrada</Badge>
+          ) : phase.status === "completed" ? (
+            <Button size="sm" variant="outline" disabled={isLoading} onClick={() => callPhaseAction("reopen")} className="gap-2">
+              <RotateCcw className="h-3.5 w-3.5" />
+              Reabrir Desenvolvimento
+            </Button>
+          ) : (
+            <>
+              <Button size="sm" variant="outline" disabled={isLoading} onClick={() => setIsCancelOpen(o => !o)} className="gap-2 text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive">
+                <XCircle className="h-3.5 w-3.5" />
+                Cancelar
+              </Button>
+              <Button size="sm" disabled={isLoading} onClick={() => callPhaseAction("complete")} className="gap-2">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                Finalizar Desenvolvimento
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {isCancelOpen && (
+        <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
+          <label className="text-xs font-medium block">Justificativa do cancelamento *</label>
+          <textarea
+            value={cancelReason}
+            onChange={(e) => setCancelReason(e.target.value)}
+            placeholder="Descreva o motivo do cancelamento..."
+            rows={3}
+            className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+          />
+          <div className="flex gap-2">
+            <Button size="sm" disabled={!cancelReason.trim() || isLoading} onClick={() => { callPhaseAction("reopen", { notes: cancelReason.trim() }); setIsCancelOpen(false); setCancelReason("") }} className="gap-2 bg-red-600 hover:bg-red-700">
+              {isLoading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              <XCircle className="h-3.5 w-3.5" />
+              Confirmar cancelamento
+            </Button>
+            <Button size="sm" variant="outline" disabled={isLoading} onClick={() => { setIsCancelOpen(false); setCancelReason("") }}>
+              Voltar
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Issues */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold">Issues</h3>
+          {!isReadOnly && !isAddingIssue && (
+            <Button size="sm" variant="outline" className="gap-1.5 h-7 px-2.5 text-xs" onClick={() => setIsAddingIssue(true)}>
+              <Plus className="h-3.5 w-3.5" />
+              Adicionar Issue
+            </Button>
+          )}
+        </div>
+
+        {issues.length === 0 && !isAddingIssue && (
+          <div className="flex items-center gap-3 p-4 rounded-lg border border-dashed text-sm text-muted-foreground">
+            Nenhuma issue registrada.
+          </div>
+        )}
+
+        {issues.length > 0 && (
+          <div className="rounded-lg border overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-muted/40">
+                  <th className="text-left text-xs font-medium text-muted-foreground px-4 py-2.5">Issue</th>
+                  <th className="text-left text-xs font-medium text-muted-foreground px-4 py-2.5">Sprint</th>
+                  <th className="text-left text-xs font-medium text-muted-foreground px-4 py-2.5">Fluxo</th>
+                  <th className="text-left text-xs font-medium text-muted-foreground px-4 py-2.5">Status</th>
+                  {!isReadOnly && <th className="px-2 py-2.5 w-8" />}
+                  {!isReadOnly && <th className="px-2 py-2.5 w-8" />}
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {issues.map((issue) => {
+                  const flow = flows.find(f => Number(f.id) === issue.flowId)
+                  const isEditing = editingIssueId === issue.id
+
+                  if (isEditing) {
+                    return (
+                      <tr key={issue.id} className="bg-muted/10">
+                        <td className="px-4 py-2" colSpan={6}>
+                          <div className="space-y-2">
+                            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                              <div className="sm:col-span-2 space-y-0.5">
+                                <Input
+                                  value={editForm.title}
+                                  onChange={e => { setEditForm(f => ({ ...f, title: e.target.value })); setEditErrors(prev => ({ ...prev, title: "" })) }}
+                                  placeholder="Título *"
+                                  className={`h-7 text-sm ${editErrors.title ? "border-destructive focus-visible:ring-destructive" : ""}`}
+                                />
+                                {editErrors.title && <p className="text-xs text-destructive">{editErrors.title}</p>}
+                              </div>
+                              <div className="sm:col-span-2 space-y-0.5">
+                                <Input
+                                  value={editForm.url}
+                                  onChange={e => { setEditForm(f => ({ ...f, url: e.target.value })); setEditErrors(prev => ({ ...prev, url: "" })) }}
+                                  placeholder="URL"
+                                  className={`h-7 text-sm ${editErrors.url ? "border-destructive focus-visible:ring-destructive" : ""}`}
+                                />
+                                {editErrors.url && <p className="text-xs text-destructive">{editErrors.url}</p>}
+                              </div>
+                              <div className="space-y-0.5">
+                                <Input
+                                  value={editForm.sprint}
+                                  onChange={e => { setEditForm(f => ({ ...f, sprint: e.target.value })); setEditErrors(prev => ({ ...prev, sprint: "" })) }}
+                                  placeholder="Sprint"
+                                  className={`h-7 text-sm ${editErrors.sprint ? "border-destructive focus-visible:ring-destructive" : ""}`}
+                                />
+                                {editErrors.sprint && <p className="text-xs text-destructive">{editErrors.sprint}</p>}
+                              </div>
+                              <div className="space-y-0.5">
+                                <select
+                                  value={editForm.flowId}
+                                  onChange={e => { setEditForm(f => ({ ...f, flowId: e.target.value })); setEditErrors(prev => ({ ...prev, flowId: "" })) }}
+                                  className={`h-7 w-full px-2 border rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary ${editErrors.flowId ? "border-destructive" : "border-input"}`}
+                                >
+                                  <option value="">Selecionar fluxo...</option>
+                                  {flows.map(fl => (
+                                    <option key={fl.id} value={fl.id}>{fl.name.toUpperCase()}</option>
+                                  ))}
+                                </select>
+                                {editErrors.flowId && <p className="text-xs text-destructive">{editErrors.flowId}</p>}
+                              </div>
+                              <div className="space-y-0.5">
+                                <label className="text-xs text-muted-foreground">Data de conclusão</label>
+                                <Input
+                                  type="date"
+                                  value={editForm.completionDate}
+                                  onChange={e => { setEditForm(f => ({ ...f, completionDate: e.target.value })); setEditErrors(prev => ({ ...prev, completionDate: "" })) }}
+                                  className={`h-7 text-sm ${editErrors.completionDate ? "border-destructive focus-visible:ring-destructive" : ""}`}
+                                />
+                                {editErrors.completionDate && <p className="text-xs text-destructive">{editErrors.completionDate}</p>}
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              <Button size="sm" disabled={isSavingEdit} onClick={handleSaveEdit} className="gap-1.5 h-7 px-3 text-xs">
+                                {isSavingEdit ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                                Salvar
+                              </Button>
+                              {!issue.status && (
+                                <Button size="sm" disabled={isSavingEdit} onClick={handleCompleteIssue} className="gap-1.5 h-7 px-3 text-xs bg-emerald-600 hover:bg-emerald-700">
+                                  {isSavingEdit ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
+                                  Concluir
+                                </Button>
+                              )}
+                              <Button size="sm" variant="outline" disabled={isSavingEdit} onClick={() => setEditingIssueId(null)} className="h-7 px-3 text-xs">
+                                Cancelar
+                              </Button>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  }
+
+                  return (
+                    <tr key={issue.id} className="hover:bg-muted/30 transition-colors">
+                      <td className="px-4 py-3">
+                        {issue.url ? (
+                          <a
+                            href={issue.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1.5 font-medium hover:underline text-foreground"
+                          >
+                            {issue.title}
+                            <ExternalLink className="h-3 w-3 text-muted-foreground shrink-0" />
+                          </a>
+                        ) : (
+                          <span className="font-medium">{issue.title}</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground">{issue.sprint || "—"}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{flow ? flow.name.toUpperCase() : "—"}</td>
+                      <td className="px-4 py-3">
+                        <IssueBadge status={issue.status} />
+                      </td>
+                      {!isReadOnly && (
+                        <td className="px-2 py-3">
+                          <button
+                            type="button"
+                            onClick={() => !issue.status && handleQuickComplete(issue)}
+                            disabled={issue.status}
+                            className={`p-1 rounded transition-colors ${issue.status ? "text-muted-foreground/30 cursor-not-allowed" : "text-amber-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30"}`}
+                            title={issue.status ? "Issue já concluída" : "Finalizar issue"}
+                          >
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                          </button>
+                        </td>
+                      )}
+                      {!isReadOnly && (
+                        <td className="px-2 py-3">
+                          <button
+                            type="button"
+                            onClick={() => openEdit(issue)}
+                            className="p-1 rounded text-muted-foreground/50 hover:text-foreground hover:bg-muted transition-colors"
+                            title="Editar issue"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <Dialog open={!!completingIssue} onOpenChange={open => { if (!open) setCompletingIssue(null) }}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Concluir Issue</DialogTitle>
+            </DialogHeader>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 py-2">
+              <div className="sm:col-span-2 space-y-1">
+                <label className="text-xs font-medium">Título *</label>
+                <Input
+                  value={completeForm.title}
+                  onChange={e => { setCompleteForm(f => ({ ...f, title: e.target.value })); setCompleteErrors(prev => ({ ...prev, title: "" })) }}
+                  placeholder="Título da issue"
+                  className={`h-8 text-sm ${completeErrors.title ? "border-destructive focus-visible:ring-destructive" : ""}`}
+                />
+                {completeErrors.title && <p className="text-xs text-destructive">{completeErrors.title}</p>}
+              </div>
+              <div className="sm:col-span-2 space-y-1">
+                <label className="text-xs font-medium">URL *</label>
+                <Input
+                  value={completeForm.url}
+                  onChange={e => { setCompleteForm(f => ({ ...f, url: e.target.value })); setCompleteErrors(prev => ({ ...prev, url: "" })) }}
+                  placeholder="https://github.com/org/repo/issues/42"
+                  className={`h-8 text-sm ${completeErrors.url ? "border-destructive focus-visible:ring-destructive" : ""}`}
+                />
+                {completeErrors.url && <p className="text-xs text-destructive">{completeErrors.url}</p>}
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium">Sprint *</label>
+                <Input
+                  value={completeForm.sprint}
+                  onChange={e => { setCompleteForm(f => ({ ...f, sprint: e.target.value })); setCompleteErrors(prev => ({ ...prev, sprint: "" })) }}
+                  placeholder="Sprint 3"
+                  className={`h-8 text-sm ${completeErrors.sprint ? "border-destructive focus-visible:ring-destructive" : ""}`}
+                />
+                {completeErrors.sprint && <p className="text-xs text-destructive">{completeErrors.sprint}</p>}
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium">Fluxo *</label>
+                <select
+                  value={completeForm.flowId}
+                  onChange={e => { setCompleteForm(f => ({ ...f, flowId: e.target.value })); setCompleteErrors(prev => ({ ...prev, flowId: "" })) }}
+                  className={`h-8 w-full px-2 border rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary ${completeErrors.flowId ? "border-destructive" : "border-input"}`}
+                >
+                  <option value="">Selecionar fluxo...</option>
+                  {flows.map(fl => (
+                    <option key={fl.id} value={fl.id}>{fl.name.toUpperCase()}</option>
+                  ))}
+                </select>
+                {completeErrors.flowId && <p className="text-xs text-destructive">{completeErrors.flowId}</p>}
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium">Data de conclusão *</label>
+                <Input
+                  type="date"
+                  value={completeForm.completionDate}
+                  onChange={e => { setCompleteForm(f => ({ ...f, completionDate: e.target.value })); setCompleteErrors(prev => ({ ...prev, completionDate: "" })) }}
+                  className={`h-8 text-sm ${completeErrors.completionDate ? "border-destructive focus-visible:ring-destructive" : ""}`}
+                />
+                {completeErrors.completionDate && <p className="text-xs text-destructive">{completeErrors.completionDate}</p>}
+              </div>
+            </div>
+            <DialogFooter className="gap-2">
+              <Button variant="outline" onClick={() => setCompletingIssue(null)} disabled={isSavingComplete}>
+                Cancelar
+              </Button>
+              <Button onClick={handleDialogComplete} disabled={isSavingComplete} className="gap-2 bg-emerald-600 hover:bg-emerald-700">
+                {isSavingComplete ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                Concluir
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {isAddingIssue && (
+          <div className="rounded-lg border bg-muted/10 p-4 space-y-3">
+            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Nova Issue</h4>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="sm:col-span-2 space-y-1">
+                <label className="text-xs font-medium">Título *</label>
+                <Input
+                  value={issueForm.title}
+                  onChange={e => setIssueForm(f => ({ ...f, title: e.target.value }))}
+                  placeholder="Título da issue"
+                  className="h-8 text-sm"
+                />
+              </div>
+              <div className="sm:col-span-2 space-y-1">
+                <label className="text-xs font-medium">URL</label>
+                <Input
+                  value={issueForm.url}
+                  onChange={e => setIssueForm(f => ({ ...f, url: e.target.value }))}
+                  placeholder="https://github.com/org/repo/issues/42"
+                  className="h-8 text-sm"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium">Sprint</label>
+                <Input
+                  value={issueForm.sprint}
+                  onChange={e => setIssueForm(f => ({ ...f, sprint: e.target.value }))}
+                  placeholder="Sprint 3"
+                  className="h-8 text-sm"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium">Fluxo</label>
+                <select
+                  value={issueForm.flowId}
+                  onChange={e => setIssueForm(f => ({ ...f, flowId: e.target.value }))}
+                  className="w-full h-8 px-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="">Selecionar fluxo...</option>
+                  {flows.map(flow => (
+                    <option key={flow.id} value={flow.id}>{flow.name.toUpperCase()}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium">Data de conclusão</label>
+                <Input
+                  type="date"
+                  value={issueForm.completionDate}
+                  onChange={e => setIssueForm(f => ({ ...f, completionDate: e.target.value }))}
+                  className="h-8 text-sm"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 pt-1">
+              <Button size="sm" disabled={isSavingIssue} onClick={handleAddIssue} className="gap-1.5 h-7 px-3 text-xs">
+                {isSavingIssue ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                Salvar
+              </Button>
+              <Button size="sm" variant="outline" disabled={isSavingIssue} onClick={() => { setIsAddingIssue(false); setIssueForm({ title: "", url: "", flowId: "", sprint: "", completionDate: "" }) }} className="h-7 px-3 text-xs">
+                Cancelar
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 type Option = { id: string; name: string }
 
 export default function TaskDetailPage() {
@@ -1300,6 +1905,22 @@ export default function TaskDetailPage() {
                         phase={phase}
                         taskId={id}
                         taskNumber={data.taskNumber}
+                        onPhaseUpdate={setPhases}
+                      />
+                    </div>
+                  ) : (phase.type === "desenvolvimento" || phase.id.startsWith("desenvolvimento")) ? (
+                    <div className="space-y-6">
+                      {(phase.status === "completed" || phase.status === "approved" || phase.status === "rejected") && (
+                        <PhaseApproval
+                          taskId={id}
+                          phaseId={phase.id}
+                          onApproved={() => mutate()}
+                          onRejected={() => mutate()}
+                        />
+                      )}
+                      <DevelopmentPhaseTab
+                        phase={phase}
+                        taskId={id}
                         onPhaseUpdate={setPhases}
                       />
                     </div>
