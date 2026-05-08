@@ -1,5 +1,34 @@
 import NextAuth from "next-auth"
-import Cognito from "next-auth/providers/cognito"
+import type { Provider } from "next-auth/providers"
+
+// Hardcode endpoints to bypass OIDC discovery on every cold start.
+// Discovery URL: https://cognito-idp.us-east-1.amazonaws.com/us-east-1_NGCyFkiV1/.well-known/openid-configuration
+const COGNITO_DOMAIN = "https://coilab-auth.auth.us-east-1.amazoncognito.com"
+
+const cognito: Provider = {
+  id: "cognito",
+  name: "Cognito",
+  type: "oidc",
+  issuer: process.env.COGNITO_ISSUER!,
+  clientId: process.env.COGNITO_CLIENT_ID!,
+  clientSecret: process.env.COGNITO_CLIENT_SECRET!,
+  authorization: {
+    url: `${COGNITO_DOMAIN}/oauth2/authorize`,
+    params: { identity_provider: "Google", scope: "openid email profile" },
+  },
+  token: `${COGNITO_DOMAIN}/oauth2/token`,
+  userinfo: `${COGNITO_DOMAIN}/oauth2/userInfo`,
+  jwks_endpoint: `${process.env.COGNITO_ISSUER}/.well-known/jwks.json`,
+  checks: ["pkce", "state"],
+  profile(profile) {
+    return {
+      id: profile.sub,
+      name: profile.name ?? profile.email,
+      email: profile.email,
+      image: profile.picture ?? null,
+    }
+  },
+}
 
 async function refreshCognitoToken(token: Record<string, unknown>): Promise<Record<string, unknown>> {
   const tokenEndpoint = token.tokenEndpoint as string
@@ -27,22 +56,13 @@ async function refreshCognitoToken(token: Record<string, unknown>): Promise<Reco
 }
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
-  debug: true,
   trustHost: true,
-  providers: [
-    Cognito({
-      clientId: process.env.COGNITO_CLIENT_ID!,
-      clientSecret: process.env.COGNITO_CLIENT_SECRET!,
-      issuer: process.env.COGNITO_ISSUER!,
-      authorization: { params: { identity_provider: "Google" } },
-    }),
-  ],
+  providers: [cognito],
   pages: {
     signIn: "/login",
   },
   callbacks: {
     async jwt({ token, account }) {
-      // Initial sign-in — store tokens and metadata
       if (account) {
         token.accessToken = account.id_token ?? account.access_token
         token.refreshToken = account.refresh_token
