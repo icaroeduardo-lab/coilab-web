@@ -910,22 +910,42 @@ function DevelopmentPhaseTab({
     })
   }
 
+  const patchIssue = async (issueId: string, body: Record<string, unknown>) => {
+    const res = await fetch(`/api/tasks/${taskId}/subtasks/${phase.id}/issues/${issueId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    })
+    if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || "Erro ao salvar issue") }
+  }
+
   const handleSaveEdit = async () => {
     if (!editForm.title.trim()) { toast.error("Título é obrigatório"); return }
     if (!editingIssueId) return
     setIsSavingEdit(true)
     try {
-      const res = await fetch(`/api/tasks/${taskId}/subtasks/${phase.id}/issues/${editingIssueId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(buildIssueBody(editForm)),
-      })
-      if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || "Erro ao salvar issue") }
+      await patchIssue(editingIssueId, buildIssueBody(editForm))
       await mutateTask()
       setEditingIssueId(null)
       toast.success("Issue atualizada")
     } catch (e: any) {
       toast.error(e.message || "Erro ao salvar issue")
+    } finally {
+      setIsSavingEdit(false)
+    }
+  }
+
+  const handleCompleteIssue = async () => {
+    if (!editForm.title.trim()) { toast.error("Título é obrigatório"); return }
+    if (!editingIssueId) return
+    setIsSavingEdit(true)
+    try {
+      await patchIssue(editingIssueId, { ...buildIssueBody(editForm), status: true })
+      await mutateTask()
+      setEditingIssueId(null)
+      toast.success("Issue concluída")
+    } catch (e: any) {
+      toast.error(e.message || "Erro ao concluir issue")
     } finally {
       setIsSavingEdit(false)
     }
@@ -1103,6 +1123,12 @@ function DevelopmentPhaseTab({
                                 {isSavingEdit ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
                                 Salvar
                               </Button>
+                              {!issue.status && (
+                                <Button size="sm" disabled={isSavingEdit} onClick={handleCompleteIssue} className="gap-1.5 h-7 px-3 text-xs bg-emerald-600 hover:bg-emerald-700">
+                                  {isSavingEdit ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
+                                  Concluir
+                                </Button>
+                              )}
                               <Button size="sm" variant="outline" disabled={isSavingEdit} onClick={() => setEditingIssueId(null)} className="h-7 px-3 text-xs">
                                 Cancelar
                               </Button>
