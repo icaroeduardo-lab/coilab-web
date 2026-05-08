@@ -1,7 +1,7 @@
 "use client"
 
 import { useRouter, useParams, notFound } from "next/navigation"
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { ArrowLeft, AlertCircle, Loader2, User, Calendar, Plus, Trash2, Check, PlayCircle, CheckCircle2, RotateCcw, Clock, Save, Pencil, XCircle, ExternalLink } from "lucide-react"
 import useSWR, { useSWRConfig } from "swr"
 import { Button } from "@/components/ui/button"
@@ -879,18 +879,6 @@ function DevelopmentPhaseTab({
   const [completeErrors, setCompleteErrors] = useState<Record<string, string>>({})
   const [isSavingComplete, setIsSavingComplete] = useState(false)
 
-  useEffect(() => {
-    if (!completingIssue) return
-    setCompleteErrors({})
-    setCompleteForm({
-      title: completingIssue.title,
-      url: completingIssue.url ?? "",
-      flowId: completingIssue.flowId ? String(completingIssue.flowId) : "",
-      sprint: completingIssue.sprint ?? "",
-      completionDate: completingIssue.completionDate ?? "",
-    })
-  }, [completingIssue])
-
   const { mutate: mutateTask } = useSWR<Task>(`/api/tasks/${taskId}`, fetcher)
   const { data: flowsData } = useSWR<FlowOption[]>("/api/flows", fetcher)
   const issues: Issue[] = phase.issues ?? []
@@ -1004,6 +992,14 @@ function DevelopmentPhaseTab({
       patchIssue(issue.id, { status: true }).then(() => mutateTask()).catch(e => toast.error(e.message || "Erro ao concluir issue"))
       return
     }
+    setCompleteErrors({})
+    setCompleteForm({
+      title: issue.title,
+      url: issue.url ?? "",
+      flowId: issue.flowId ? String(issue.flowId) : "",
+      sprint: issue.sprint ?? "",
+      completionDate: issue.completionDate ?? "",
+    })
     setCompletingIssue(issue)
   }
 
