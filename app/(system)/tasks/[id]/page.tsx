@@ -21,6 +21,13 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "sonner"
+import { z } from "zod"
+
+const issueCompleteSchema = z.object({
+  title: z.string().min(1, "Título é obrigatório"),
+  sprint: z.string().min(1, "Sprint é obrigatório para concluir"),
+  completionDate: z.string().min(1, "Data de conclusão é obrigatória para concluir"),
+})
 const fetcher = async (url: string) => {
   const r = await fetch(url)
   if (!r.ok) {
@@ -936,8 +943,16 @@ function DevelopmentPhaseTab({
   }
 
   const handleCompleteIssue = async () => {
-    if (!editForm.title.trim()) { toast.error("Título é obrigatório"); return }
     if (!editingIssueId) return
+    const result = issueCompleteSchema.safeParse({
+      title: editForm.title,
+      sprint: editForm.sprint,
+      completionDate: editForm.completionDate,
+    })
+    if (!result.success) {
+      result.error.errors.forEach(e => toast.error(e.message))
+      return
+    }
     setIsSavingEdit(true)
     try {
       await patchIssue(editingIssueId, { ...buildIssueBody(editForm), status: true })
