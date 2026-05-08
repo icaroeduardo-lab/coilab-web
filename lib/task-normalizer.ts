@@ -13,27 +13,32 @@ const TYPE_ORDER: Record<string, number> = {
   Discovery: 1,
   Design: 2,
   Diagram: 3,
+  Desenvolvimento: 4,
 }
 
 const PHASE_ID_MAP: Record<string, string> = {
   discovery: "Discovery",
   design: "Design",
   diagram: "Diagram",
+  desenvolvimento: "Desenvolvimento",
 }
 
 const TYPEID_TO_NAME: Record<number, string> = {
   1: "Discovery",
   2: "Design",
   3: "Diagram",
+  4: "Desenvolvimento",
 }
 
 export const NAME_TO_TYPEID: Record<string, number> = {
   discovery: 1,
   design: 2,
   diagram: 3,
+  desenvolvimento: 4,
   Discovery: 1,
   Design: 2,
   Diagram: 3,
+  Desenvolvimento: 4,
 }
 
 export function subTaskStatusToPhaseStatus(status: string): PhaseStatus {
