@@ -496,11 +496,7 @@ function PhaseTab({ phase, taskId, onPhaseUpdate }: { phase: Phase; taskId: stri
   )
 }
 
-const ALL_PHASES = [
-  { id: "discovery", name: "Discovery", order: 1 },
-  { id: "design", name: "Design", order: 2 },
-  { id: "diagram", name: "Diagram", order: 3 },
-]
+type Tool = { id: number; name: string }
 
 function PhasesCard({
   allPhases,
@@ -514,10 +510,13 @@ function PhasesCard({
   onUpdate: () => void
 }) {
   const [isAdding, setIsAdding] = useState(false)
-  const [selectedPhaseId, setSelectedPhaseId] = useState("")
+  const [selectedToolId, setSelectedToolId] = useState<number | null>(null)
   const [dueDate, setDueDate] = useState<Date | undefined>(undefined)
   const [isSaving, setIsSaving] = useState(false)
   const [errors, setErrors] = useState<{ phase?: string; date?: string }>({})
+
+  const { data: toolsData } = useSWR<Tool[]>("/api/tasks/tools", fetcher)
+  const tools = Array.isArray(toolsData) ? toolsData : []
 
   const { data: allApprovals } = useSWR<{ phaseId: string; status: string; createdAt: string }[]>(
     `/api/approvals?taskId=${taskId}`,
@@ -534,48 +533,40 @@ function PhasesCard({
     return latest.status as Phase["status"]
   }
 
-  const disabledPhases = ALL_PHASES.filter(
-    p => !allPhases.find(ap => ap.type === p.id && ap.status !== "rejected")
+  const availableTools = tools.filter(
+    tool => !allPhases.find(ap => ap.type === tool.name.toLowerCase() && ap.status !== "rejected")
   )
 
   const handleAdd = async () => {
     const newErrors: { phase?: string; date?: string } = {}
-    if (!selectedPhaseId) newErrors.phase = "Selecione uma fase"
+    if (!selectedToolId) newErrors.phase = "Selecione uma fase"
     if (!dueDate) newErrors.date = "Selecione uma data"
     if (Object.keys(newErrors).length > 0) { setErrors(newErrors); return }
 
+    const selectedTool = tools.find(t => t.id === selectedToolId)!
+
     setIsSaving(true)
     try {
-      const phaseTemplate = ALL_PHASES.find(p => p.id === selectedPhaseId)!
-      const existing = allPhases.find(p => p.id === selectedPhaseId)
-
-      const updatedPhases = allPhases.map(p =>
-        p.id === selectedPhaseId
-          ? { ...p, enabled: true, dueDate: dueDate!.toISOString() }
-          : p
-      )
-
-      // If phase doesn't exist in array yet, add it
-      if (!existing) {
-        updatedPhases.push({
-          ...phaseTemplate,
-          enabled: true,
-          status: "not_started",
-          notes: "",
-          checklist: [],
-          dueDate: dueDate!.toISOString(),
-        })
+      const newPhase = {
+        id: selectedTool.name.toLowerCase(),
+        type: selectedTool.name.toLowerCase(),
+        name: selectedTool.name,
+        enabled: true,
+        status: "not_started",
+        notes: "",
+        checklist: [],
+        dueDate: dueDate!.toISOString(),
       }
 
       await fetch(`/api/tasks/${taskId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phases: updatedPhases }),
+        body: JSON.stringify({ phases: [...allPhases, newPhase] }),
       })
 
       onUpdate()
       setIsAdding(false)
-      setSelectedPhaseId("")
+      setSelectedToolId(null)
       setDueDate(undefined)
       setErrors({})
     } catch (error: any) {
@@ -587,7 +578,7 @@ function PhasesCard({
 
   const handleCancel = () => {
     setIsAdding(false)
-    setSelectedPhaseId("")
+    setSelectedToolId(null)
     setDueDate(undefined)
     setErrors({})
   }
@@ -597,7 +588,7 @@ function PhasesCard({
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="text-sm font-medium text-muted-foreground">Fases</CardTitle>
-          {disabledPhases.length > 0 && !isAdding && (
+          {availableTools.length > 0 && !isAdding && (
             <Button size="sm" variant="outline" className="gap-1.5 h-7 px-2.5 text-xs" onClick={() => setIsAdding(true)}>
               <Plus className="h-3.5 w-3.5" />
               Adicionar Fase
@@ -654,13 +645,13 @@ function PhasesCard({
                   <td className="px-6 py-3">
                     <div className="space-y-1">
                       <select
-                        value={selectedPhaseId}
-                        onChange={(e) => { setSelectedPhaseId(e.target.value); setErrors(prev => ({ ...prev, phase: undefined })) }}
+                        value={selectedToolId ?? ""}
+                        onChange={(e) => { setSelectedToolId(e.target.value ? Number(e.target.value) : null); setErrors(prev => ({ ...prev, phase: undefined })) }}
                         className="w-full px-2 py-1.5 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                       >
                         <option value="">Selecionar fase...</option>
-                        {disabledPhases.map(p => (
-                          <option key={p.id} value={p.id}>{p.name}</option>
+                        {availableTools.map(t => (
+                          <option key={t.id} value={t.id}>{t.name}</option>
                         ))}
                       </select>
                       {errors.phase && <p className="text-xs text-destructive">{errors.phase}</p>}

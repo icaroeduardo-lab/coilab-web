@@ -68,7 +68,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     // phases array → add new subtasks / remove disabled ones
     if (phases && !name && !description && !project && !applicant && !priority && !status) {
       const current = await apiClient.get<{ subTasks: { id: string; typeId: number; status: string }[] }>(`/tasks/${id}`)
-      const TYPEID_TO_LOWER: Record<number, string> = { 1: "discovery", 2: "design", 3: "diagram" }
+      const TYPEID_TO_LOWER: Record<number, string> = { 1: "discovery", 2: "design", 3: "diagram", 4: "desenvolvimento" }
       const currentTypes = new Set(
         (current.subTasks ?? [])
           .filter((s) => s.status !== "Reprovado" && s.status !== "Cancelado")
