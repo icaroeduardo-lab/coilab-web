@@ -17,6 +17,7 @@ import { ptBR } from "date-fns/locale"
 import DesignManager, { Design } from "@/components/design-manager"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -873,6 +874,10 @@ function DevelopmentPhaseTab({
   const [issueForm, setIssueForm] = useState({ title: "", url: "", flowId: "", sprint: "", completionDate: "" })
   const [editForm, setEditForm] = useState({ title: "", url: "", flowId: "", sprint: "", completionDate: "" })
   const [editErrors, setEditErrors] = useState<Record<string, string>>({})
+  const [completingIssue, setCompletingIssue] = useState<Issue | null>(null)
+  const [completeForm, setCompleteForm] = useState({ title: "", url: "", flowId: "", sprint: "", completionDate: "" })
+  const [completeErrors, setCompleteErrors] = useState<Record<string, string>>({})
+  const [isSavingComplete, setIsSavingComplete] = useState(false)
 
   const { mutate: mutateTask } = useSWR<Task>(`/api/tasks/${taskId}`, fetcher)
   const { data: flowsData } = useSWR<FlowOption[]>("/api/flows", fetcher)
@@ -972,6 +977,51 @@ function DevelopmentPhaseTab({
       toast.error(e.message || "Erro ao concluir issue")
     } finally {
       setIsSavingEdit(false)
+    }
+  }
+
+  const handleQuickComplete = (issue: Issue) => {
+    const result = issueCompleteSchema.safeParse({
+      title: issue.title,
+      url: issue.url ?? "",
+      flowId: issue.flowId ? String(issue.flowId) : "",
+      sprint: issue.sprint ?? "",
+      completionDate: issue.completionDate ?? "",
+    })
+    if (result.success) {
+      patchIssue(issue.id, { status: true }).then(() => mutateTask()).catch(e => toast.error(e.message || "Erro ao concluir issue"))
+      return
+    }
+    setCompletingIssue(issue)
+    setCompleteErrors({})
+    setCompleteForm({
+      title: issue.title,
+      url: issue.url ?? "",
+      flowId: issue.flowId ? String(issue.flowId) : "",
+      sprint: issue.sprint ?? "",
+      completionDate: issue.completionDate ?? "",
+    })
+  }
+
+  const handleDialogComplete = async () => {
+    if (!completingIssue) return
+    const result = issueCompleteSchema.safeParse(completeForm)
+    if (!result.success) {
+      const errs: Record<string, string> = {}
+      result.error.errors.forEach(e => { if (e.path[0]) errs[e.path[0] as string] = e.message })
+      setCompleteErrors(errs)
+      return
+    }
+    setIsSavingComplete(true)
+    try {
+      await patchIssue(completingIssue.id, { ...buildIssueBody(completeForm), status: true })
+      await mutateTask()
+      setCompletingIssue(null)
+      toast.success("Issue concluída")
+    } catch (e: any) {
+      toast.error(e.message || "Erro ao concluir issue")
+    } finally {
+      setIsSavingComplete(false)
     }
   }
 
@@ -1196,14 +1246,26 @@ function DevelopmentPhaseTab({
                       </td>
                       {!isReadOnly && (
                         <td className="px-4 py-3">
-                          <button
-                            type="button"
-                            onClick={() => openEdit(issue)}
-                            className="p-1 rounded text-muted-foreground/50 hover:text-foreground hover:bg-muted transition-colors"
-                            title="Editar issue"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </button>
+                          <div className="flex items-center gap-1">
+                            {!issue.status && (
+                              <button
+                                type="button"
+                                onClick={() => handleQuickComplete(issue)}
+                                className="p-1 rounded text-muted-foreground/50 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors"
+                                title="Finalizar issue"
+                              >
+                                <CheckCircle2 className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => openEdit(issue)}
+                              className="p-1 rounded text-muted-foreground/50 hover:text-foreground hover:bg-muted transition-colors"
+                              title="Editar issue"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
                         </td>
                       )}
                     </tr>
@@ -1213,6 +1275,79 @@ function DevelopmentPhaseTab({
             </table>
           </div>
         )}
+
+        <Dialog open={!!completingIssue} onOpenChange={open => { if (!open) setCompletingIssue(null) }}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Concluir Issue</DialogTitle>
+            </DialogHeader>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 py-2">
+              <div className="sm:col-span-2 space-y-1">
+                <label className="text-xs font-medium">Título *</label>
+                <Input
+                  value={completeForm.title}
+                  onChange={e => { setCompleteForm(f => ({ ...f, title: e.target.value })); setCompleteErrors(prev => ({ ...prev, title: "" })) }}
+                  placeholder="Título da issue"
+                  className={`h-8 text-sm ${completeErrors.title ? "border-destructive focus-visible:ring-destructive" : ""}`}
+                />
+                {completeErrors.title && <p className="text-xs text-destructive">{completeErrors.title}</p>}
+              </div>
+              <div className="sm:col-span-2 space-y-1">
+                <label className="text-xs font-medium">URL *</label>
+                <Input
+                  value={completeForm.url}
+                  onChange={e => { setCompleteForm(f => ({ ...f, url: e.target.value })); setCompleteErrors(prev => ({ ...prev, url: "" })) }}
+                  placeholder="https://github.com/org/repo/issues/42"
+                  className={`h-8 text-sm ${completeErrors.url ? "border-destructive focus-visible:ring-destructive" : ""}`}
+                />
+                {completeErrors.url && <p className="text-xs text-destructive">{completeErrors.url}</p>}
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium">Sprint *</label>
+                <Input
+                  value={completeForm.sprint}
+                  onChange={e => { setCompleteForm(f => ({ ...f, sprint: e.target.value })); setCompleteErrors(prev => ({ ...prev, sprint: "" })) }}
+                  placeholder="Sprint 3"
+                  className={`h-8 text-sm ${completeErrors.sprint ? "border-destructive focus-visible:ring-destructive" : ""}`}
+                />
+                {completeErrors.sprint && <p className="text-xs text-destructive">{completeErrors.sprint}</p>}
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium">Fluxo *</label>
+                <select
+                  value={completeForm.flowId}
+                  onChange={e => { setCompleteForm(f => ({ ...f, flowId: e.target.value })); setCompleteErrors(prev => ({ ...prev, flowId: "" })) }}
+                  className={`h-8 w-full px-2 border rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary ${completeErrors.flowId ? "border-destructive" : "border-input"}`}
+                >
+                  <option value="">Selecionar fluxo...</option>
+                  {flows.map(fl => (
+                    <option key={fl.id} value={fl.id}>{fl.name.toUpperCase()}</option>
+                  ))}
+                </select>
+                {completeErrors.flowId && <p className="text-xs text-destructive">{completeErrors.flowId}</p>}
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium">Data de conclusão *</label>
+                <Input
+                  type="date"
+                  value={completeForm.completionDate}
+                  onChange={e => { setCompleteForm(f => ({ ...f, completionDate: e.target.value })); setCompleteErrors(prev => ({ ...prev, completionDate: "" })) }}
+                  className={`h-8 text-sm ${completeErrors.completionDate ? "border-destructive focus-visible:ring-destructive" : ""}`}
+                />
+                {completeErrors.completionDate && <p className="text-xs text-destructive">{completeErrors.completionDate}</p>}
+              </div>
+            </div>
+            <DialogFooter className="gap-2">
+              <Button variant="outline" onClick={() => setCompletingIssue(null)} disabled={isSavingComplete}>
+                Cancelar
+              </Button>
+              <Button onClick={handleDialogComplete} disabled={isSavingComplete} className="gap-2 bg-emerald-600 hover:bg-emerald-700">
+                {isSavingComplete ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                Concluir
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {isAddingIssue && (
           <div className="rounded-lg border bg-muted/10 p-4 space-y-3">
