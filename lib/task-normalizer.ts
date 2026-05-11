@@ -13,27 +13,32 @@ const TYPE_ORDER: Record<string, number> = {
   Discovery: 1,
   Design: 2,
   Diagram: 3,
+  Desenvolvimento: 4,
 }
 
 const PHASE_ID_MAP: Record<string, string> = {
   discovery: "Discovery",
   design: "Design",
   diagram: "Diagram",
+  desenvolvimento: "Desenvolvimento",
 }
 
 const TYPEID_TO_NAME: Record<number, string> = {
   1: "Discovery",
   2: "Design",
   3: "Diagram",
+  4: "Desenvolvimento",
 }
 
 export const NAME_TO_TYPEID: Record<string, number> = {
   discovery: 1,
   design: 2,
   diagram: 3,
+  desenvolvimento: 4,
   Discovery: 1,
   Design: 2,
   Diagram: 3,
+  Desenvolvimento: 4,
 }
 
 export function subTaskStatusToPhaseStatus(status: string): PhaseStatus {
@@ -112,6 +117,7 @@ export function normalizeSubTask(st: any) {
   const metadata = st.metadata ?? {}
   const discovery = mapBackendDiscovery(metadata.form ?? st.discoveryForm)
   const designs = metadata.designs ?? st.designs ?? []
+  const issues = metadata.issues ?? []
   return {
     id: st.id,
     type: typeName.toLowerCase() as string,
@@ -127,6 +133,8 @@ export function normalizeSubTask(st: any) {
     checklist: [] as { id: string; label: string; completed: boolean }[],
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     designs: designs.map((d: any) => ({ ...d, url: d.url ?? d.urlImage ?? "" })),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    issues: issues as { id: string; title: string; url?: string; flowId?: number; status: boolean; sprint?: string; completionDate?: string }[],
     discoveryData: discovery?.data,
     discoveryMeta: discovery?.meta,
   }

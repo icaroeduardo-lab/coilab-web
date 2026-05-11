@@ -22,6 +22,10 @@ import {
   Pencil,
   Trash2,
   MoreHorizontal,
+  ChevronDown,
+  X,
+  Search,
+  Columns3,
 } from "lucide-react"
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
@@ -123,6 +127,7 @@ const editSchema = z.object({
   project: z.string().min(2, { message: "O projeto é obrigatório." }),
   priority: z.string().min(2, { message: "A prioridade é obrigatória." }),
   description: z.string().min(2, { message: "A tarefa deve ter uma descrição obrigatória." }),
+  flowIds: z.array(z.number()).optional(),
 })
 
 type Phase = {
@@ -148,6 +153,7 @@ type Task = {
   description?: string
   hasRejection?: boolean
   phases?: { id: string; status: string; enabled: boolean; name: string }[]
+  flows?: { id: number; name: string }[]
 }
 
 type Option = {
@@ -289,7 +295,7 @@ function TaskCard({
         >
           <CardHeader className="p-4 pb-2 pr-10">
             {task.taskNumber && (
-              <span className="text-[10px] font-mono text-muted-foreground/70 mb-0.5">#{task.taskNumber}</span>
+              <span className="text-[10px] font-mono text-muted-foreground/70 mb-0.5">{task.taskNumber}</span>
             )}
             <CardTitle className="text-sm font-bold">{task.name}</CardTitle>
             <CardDescription className="text-xs">{task.project}</CardDescription>
@@ -373,6 +379,63 @@ function KanbanColumn({
   )
 }
 
+function FilterPopover({
+  label,
+  options,
+  selected,
+  onChange,
+}: {
+  label: string
+  options: string[]
+  selected: string[]
+  onChange: (values: string[]) => void
+}) {
+  const toggle = (value: string) =>
+    onChange(selected.includes(value) ? selected.filter(v => v !== value) : [...selected, value])
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          className={`gap-1.5 h-8 text-xs transition-colors ${selected.length > 0 ? "border-primary text-primary bg-primary/5 hover:bg-primary/10" : ""}`}
+        >
+          {label}
+          {selected.length > 0 && (
+            <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] px-1">
+              {selected.length}
+            </span>
+          )}
+          <ChevronDown className="h-3 w-3 text-muted-foreground ml-0.5" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-52 p-2" align="start">
+        {options.length === 0 ? (
+          <p className="text-xs text-muted-foreground px-2 py-1.5">Nenhuma opção</p>
+        ) : (
+          <div className="space-y-0.5">
+            {options.map(option => (
+              <label
+                key={option}
+                className="flex items-center gap-2.5 px-2 py-1.5 rounded hover:bg-muted/60 cursor-pointer text-sm"
+              >
+                <input
+                  type="checkbox"
+                  checked={selected.includes(option)}
+                  onChange={() => toggle(option)}
+                  className="rounded border-gray-300 cursor-pointer"
+                />
+                <span className="truncate">{option}</span>
+              </label>
+            ))}
+          </div>
+        )}
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 export default function Page() {
   const { mutate } = useSWRConfig()
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
@@ -387,6 +450,35 @@ export default function Page() {
   const { data: flowsData } = useSWR<Option[]>("/api/flows", fetcher)
 
   const tasks = Array.isArray(tasksData) ? tasksData : []
+
+  const [search, setSearch] = useState("")
+  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(
+    () => new Set(KANBAN_COLUMNS.map(c => c.id))
+  )
+  const toggleColumn = (id: string) =>
+    setVisibleColumns(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  const [filters, setFilters] = useState<{ priority: string[]; project: string[]; applicant: string[] }>({
+    priority: [], project: [], applicant: [],
+  })
+  const hasActiveFilters = search.trim().length > 0 || filters.priority.length > 0 || filters.project.length > 0 || filters.applicant.length > 0
+  const clearFilters = () => { setFilters({ priority: [], project: [], applicant: [] }); setSearch("") }
+
+  const filteredTasks = tasks.filter(task => {
+    if (search.trim()) {
+      const q = search.trim().toLowerCase()
+      const matchesName = task.name.toLowerCase().includes(q)
+      const matchesNumber = task.taskNumber?.toLowerCase().includes(q)
+      if (!matchesName && !matchesNumber) return false
+    }
+    if (filters.priority.length > 0 && !filters.priority.some(p => task.priority.toLowerCase() === p.toLowerCase())) return false
+    if (filters.project.length > 0 && !filters.project.some(p => task.project.toUpperCase() === p)) return false
+    if (filters.applicant.length > 0 && !filters.applicant.some(a => task.applicant.toUpperCase() === a)) return false
+    return true
+  })
 
   const applicants = Array.isArray(applicantsData) ? applicantsData.map(a => ({ ...a, name: a.name.toUpperCase() })).filter((a, i, arr) => arr.findIndex(x => x.name === a.name) === i) : []
   const projects = Array.isArray(projectsData) ? projectsData.map(p => ({ ...p, name: p.name.toUpperCase() })).filter((p, i, arr) => arr.findIndex(x => x.name === p.name) === i) : []
@@ -421,6 +513,7 @@ export default function Page() {
       applicant: "",
       priority: "Baixa",
       description: "",
+      flowIds: [],
     },
   })
 
@@ -439,6 +532,7 @@ export default function Page() {
       applicant: task.applicant,
       priority: task.priority,
       description: task.description ?? "",
+      flowIds: (task.flows ?? []).map((f) => f.id),
     })
     setEditingTask(task)
   }
@@ -487,10 +581,20 @@ export default function Page() {
   async function onEditSubmit(values: z.infer<typeof editSchema>) {
     if (!editingTask) return
     try {
+      const originalFlowIds = (editingTask.flows ?? []).map((f) => f.id)
+      const newFlowIds = values.flowIds ?? []
+      const flowIdsToAdd = newFlowIds.filter((id) => !originalFlowIds.includes(id))
+      const flowIdsToRemove = originalFlowIds.filter((id) => !newFlowIds.includes(id))
+
+      const { flowIds: _, ...rest } = values
+      const payload: Record<string, unknown> = { ...rest }
+      if (flowIdsToAdd.length > 0) payload.flowIdsToAdd = flowIdsToAdd
+      if (flowIdsToRemove.length > 0) payload.flowIdsToRemove = flowIdsToRemove
+
       const response = await fetch(`/api/tasks/${editingTask.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(values),
+        body: JSON.stringify(payload),
       })
 
       setEditingTask(null)
@@ -532,7 +636,7 @@ export default function Page() {
       header: "Nº",
       cell: ({ row }) => (
         <span className="text-xs font-mono text-muted-foreground whitespace-nowrap">
-          {row.getValue("taskNumber") ? `#${row.getValue("taskNumber")}` : "—"}
+          {row.getValue("taskNumber") ? row.getValue("taskNumber") : "—"}
         </span>
       ),
     },
@@ -917,18 +1021,83 @@ export default function Page() {
       </div>
 
       <Tabs defaultValue="kanban">
-        <TabsList>
-          <TabsTrigger value="kanban">Kanban</TabsTrigger>
-          <TabsTrigger value="list">Lista</TabsTrigger>
-        </TabsList>
+        <div className="flex items-center gap-3 flex-wrap">
+          <TabsList>
+            <TabsTrigger value="kanban">Kanban</TabsTrigger>
+            <TabsTrigger value="list">Lista</TabsTrigger>
+          </TabsList>
+          <div className="flex items-center gap-2 flex-wrap">
+            <FilterPopover
+              label="Prioridade"
+              options={["Alta", "Média", "Baixa"]}
+              selected={filters.priority}
+              onChange={v => setFilters(f => ({ ...f, priority: v }))}
+            />
+            <FilterPopover
+              label="Projeto"
+              options={projects.map(p => p.name)}
+              selected={filters.project}
+              onChange={v => setFilters(f => ({ ...f, project: v }))}
+            />
+            <FilterPopover
+              label="Solicitante"
+              options={applicants.map(a => a.name)}
+              selected={filters.applicant}
+              onChange={v => setFilters(f => ({ ...f, applicant: v }))}
+            />
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs">
+                  <Columns3 className="h-3.5 w-3.5" />
+                  Colunas
+                  {visibleColumns.size < KANBAN_COLUMNS.length && (
+                    <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] px-1">
+                      {visibleColumns.size}
+                    </span>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-52 p-2" align="start">
+                <div className="space-y-0.5">
+                  {KANBAN_COLUMNS.map(col => (
+                    <label key={col.id} className="flex items-center gap-2.5 px-2 py-1.5 rounded hover:bg-muted/60 cursor-pointer text-sm">
+                      <input
+                        type="checkbox"
+                        checked={visibleColumns.has(col.id)}
+                        onChange={() => toggleColumn(col.id)}
+                        className="rounded border-gray-300 cursor-pointer"
+                      />
+                      <span className="truncate">{col.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+              <Input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Pesquisar por título ou #número..."
+                className="h-8 pl-8 text-xs w-[48rem]"
+              />
+            </div>
+            {hasActiveFilters && (
+              <Button variant="ghost" size="sm" onClick={clearFilters} className="h-8 px-2 text-xs gap-1 text-muted-foreground hover:text-foreground">
+                <X className="h-3 w-3" />
+                Limpar
+              </Button>
+            )}
+          </div>
+        </div>
         <TabsContent value="kanban" className="pt-4">
           <div className="flex gap-4 overflow-x-auto pb-4">
             <div className="flex gap-4 min-w-full">
-              {KANBAN_COLUMNS.map((column) => (
+              {KANBAN_COLUMNS.filter(c => visibleColumns.has(c.id)).map((column) => (
                 <KanbanColumn
                   key={column.id}
                   column={column}
-                  tasks={sortTasks(tasks.filter(
+                  tasks={sortTasks(filteredTasks.filter(
                     (t) => t.status.toLowerCase() === column.id.toLowerCase()
                   ))}
                   onEdit={handleEditOpen}
@@ -943,7 +1112,7 @@ export default function Page() {
             {tasksLoading ? (
               <div className="flex h-24 items-center justify-center">Carregando...</div>
             ) : (
-              <DataTable columns={columns} data={tasks} />
+              <DataTable columns={columns} data={filteredTasks.filter(t => [...visibleColumns].some(col => t.status.toLowerCase() === col.toLowerCase()))} />
             )}
           </div>
         </TabsContent>
@@ -1057,6 +1226,45 @@ export default function Page() {
                       <FormControl>
                         <Textarea {...field} placeholder="Descrição da tarefa..." className="min-h-24" />
                       </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={editForm.control}
+                  name="flowIds"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Fluxos</FormLabel>
+                      <div className="grid grid-cols-2 gap-1 border rounded-lg p-3 bg-muted/30 min-h-12">
+                        {flows.length === 0 ? (
+                          <p className="text-sm text-muted-foreground col-span-2 py-1">Nenhum fluxo disponível</p>
+                        ) : (
+                          flows.map((flow) => {
+                            const flowId = Number(flow.id)
+                            const checked = (field.value ?? []).includes(flowId)
+                            return (
+                              <label
+                                key={flow.id}
+                                className="flex items-center gap-2.5 text-sm cursor-pointer hover:bg-muted/50 px-2 py-1.5 rounded transition-colors"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={(e) => {
+                                    const updated = e.target.checked
+                                      ? [...(field.value ?? []), flowId]
+                                      : (field.value ?? []).filter((id) => id !== flowId)
+                                    field.onChange(updated)
+                                  }}
+                                  className="rounded border-gray-300 cursor-pointer"
+                                />
+                                <span className="font-medium">{flow.name}</span>
+                              </label>
+                            )
+                          })
+                        )}
+                      </div>
                       <FormMessage />
                     </FormItem>
                   )}
