@@ -1041,7 +1041,7 @@ export default function Page() {
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 placeholder="Pesquisar por título ou #número..."
-                className="h-8 pl-8 text-xs w-72"
+                className="h-8 pl-8 text-xs w-96"
               />
             </div>
             {hasActiveFilters && (
