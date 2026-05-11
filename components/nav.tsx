@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Button } from "./ui/button"
+import { GlobalSearch } from "./global-search"
 
 const links = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -41,7 +42,7 @@ export function Nav() {
       <span className="font-bold text-primary tracking-tight text-lg select-none">
         COILAB
       </span>
-      <div className="flex items-center gap-1 flex-1">
+      <div className="flex items-center gap-1">
         {links.map(({ href, label, icon: Icon }) => {
           const isActive = href === "/" ? pathname === href : pathname.startsWith(href)
           return (
@@ -60,6 +61,9 @@ export function Nav() {
             </Link>
           )
         })}
+      </div>
+      <div className="flex-1 flex justify-center">
+        <GlobalSearch />
       </div>
 
       <DropdownMenu>
