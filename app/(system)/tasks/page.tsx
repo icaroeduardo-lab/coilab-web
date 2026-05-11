@@ -25,6 +25,7 @@ import {
   ChevronDown,
   X,
   Search,
+  Columns3,
 } from "lucide-react"
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
@@ -451,6 +452,15 @@ export default function Page() {
   const tasks = Array.isArray(tasksData) ? tasksData : []
 
   const [search, setSearch] = useState("")
+  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(
+    () => new Set(KANBAN_COLUMNS.map(c => c.id))
+  )
+  const toggleColumn = (id: string) =>
+    setVisibleColumns(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
   const [filters, setFilters] = useState<{ priority: string[]; project: string[]; applicant: string[] }>({
     priority: [], project: [], applicant: [],
   })
@@ -1035,6 +1045,34 @@ export default function Page() {
               selected={filters.applicant}
               onChange={v => setFilters(f => ({ ...f, applicant: v }))}
             />
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs">
+                  <Columns3 className="h-3.5 w-3.5" />
+                  Colunas
+                  {visibleColumns.size < KANBAN_COLUMNS.length && (
+                    <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] px-1">
+                      {visibleColumns.size}
+                    </span>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-52 p-2" align="start">
+                <div className="space-y-0.5">
+                  {KANBAN_COLUMNS.map(col => (
+                    <label key={col.id} className="flex items-center gap-2.5 px-2 py-1.5 rounded hover:bg-muted/60 cursor-pointer text-sm">
+                      <input
+                        type="checkbox"
+                        checked={visibleColumns.has(col.id)}
+                        onChange={() => toggleColumn(col.id)}
+                        className="rounded border-gray-300 cursor-pointer"
+                      />
+                      <span className="truncate">{col.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
               <Input
@@ -1055,7 +1093,7 @@ export default function Page() {
         <TabsContent value="kanban" className="pt-4">
           <div className="flex gap-4 overflow-x-auto pb-4">
             <div className="flex gap-4 min-w-full">
-              {KANBAN_COLUMNS.map((column) => (
+              {KANBAN_COLUMNS.filter(c => visibleColumns.has(c.id)).map((column) => (
                 <KanbanColumn
                   key={column.id}
                   column={column}
