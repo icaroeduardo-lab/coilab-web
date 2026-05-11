@@ -1016,24 +1016,6 @@ export default function Page() {
             <TabsTrigger value="kanban">Kanban</TabsTrigger>
             <TabsTrigger value="list">Lista</TabsTrigger>
           </TabsList>
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
-            <Input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Pesquisar por título ou #número..."
-              className="h-8 pl-8 pr-8 text-xs w-56"
-            />
-            {search && (
-              <button
-                type="button"
-                onClick={() => setSearch("")}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            )}
-          </div>
           <div className="flex items-center gap-2 flex-wrap">
             <FilterPopover
               label="Prioridade"
@@ -1059,6 +1041,24 @@ export default function Page() {
                 Limpar
               </Button>
             )}
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+              <Input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Pesquisar por título ou #número..."
+                className="h-8 pl-8 pr-8 text-xs w-72"
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
           </div>
         </div>
         <TabsContent value="kanban" className="pt-4">
