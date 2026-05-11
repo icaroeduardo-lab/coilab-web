@@ -1003,7 +1003,7 @@ export default function Page() {
       </div>
 
       <Tabs defaultValue="kanban">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-3 flex-wrap">
           <TabsList>
             <TabsTrigger value="kanban">Kanban</TabsTrigger>
             <TabsTrigger value="list">Lista</TabsTrigger>
