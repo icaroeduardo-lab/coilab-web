@@ -24,6 +24,7 @@ import {
   MoreHorizontal,
   ChevronDown,
   X,
+  Search,
 } from "lucide-react"
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
@@ -449,13 +450,20 @@ export default function Page() {
 
   const tasks = Array.isArray(tasksData) ? tasksData : []
 
+  const [search, setSearch] = useState("")
   const [filters, setFilters] = useState<{ priority: string[]; project: string[]; applicant: string[] }>({
     priority: [], project: [], applicant: [],
   })
-  const hasActiveFilters = filters.priority.length > 0 || filters.project.length > 0 || filters.applicant.length > 0
-  const clearFilters = () => setFilters({ priority: [], project: [], applicant: [] })
+  const hasActiveFilters = search.trim().length > 0 || filters.priority.length > 0 || filters.project.length > 0 || filters.applicant.length > 0
+  const clearFilters = () => { setFilters({ priority: [], project: [], applicant: [] }); setSearch("") }
 
   const filteredTasks = tasks.filter(task => {
+    if (search.trim()) {
+      const q = search.trim().toLowerCase()
+      const matchesName = task.name.toLowerCase().includes(q)
+      const matchesNumber = task.taskNumber?.toLowerCase().includes(q)
+      if (!matchesName && !matchesNumber) return false
+    }
     if (filters.priority.length > 0 && !filters.priority.some(p => task.priority.toLowerCase() === p.toLowerCase())) return false
     if (filters.project.length > 0 && !filters.project.some(p => task.project.toUpperCase() === p)) return false
     if (filters.applicant.length > 0 && !filters.applicant.some(a => task.applicant.toUpperCase() === a)) return false
@@ -1008,6 +1016,24 @@ export default function Page() {
             <TabsTrigger value="kanban">Kanban</TabsTrigger>
             <TabsTrigger value="list">Lista</TabsTrigger>
           </TabsList>
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+            <Input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Pesquisar por título ou #número..."
+              className="h-8 pl-8 pr-8 text-xs w-56"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
           <div className="flex items-center gap-2 flex-wrap">
             <FilterPopover
               label="Prioridade"
