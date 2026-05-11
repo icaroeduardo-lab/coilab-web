@@ -95,10 +95,10 @@ export function GlobalSearch() {
               </div>
               <Badge
                 variant="secondary"
-                className={`shrink-0 text-[10px] h-5 px-1.5 ${
+                className={`shrink-0 text-[10px] h-5 px-1.5 border ${
                   r.kind === "project"
-                    ? "bg-violet-100 text-violet-700 border border-violet-200 dark:bg-violet-950/30 dark:text-violet-400 dark:border-violet-800"
-                    : ""
+                    ? "bg-violet-100 text-violet-700 border-violet-200 dark:bg-violet-950/30 dark:text-violet-400 dark:border-violet-800"
+                    : "bg-sky-100 text-sky-700 border-sky-200 dark:bg-sky-950/30 dark:text-sky-400 dark:border-sky-800"
                 }`}
               >
                 {r.kind === "task" ? "Tarefa" : "Projeto"}
