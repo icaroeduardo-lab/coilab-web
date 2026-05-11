@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import useSWR from "swr"
 import { Search } from "lucide-react"
 import { Input } from "@/components/ui/input"
+import { Badge } from "@/components/ui/badge"
 
 type Task = { id: string; name: string; taskNumber?: string; status?: string; project?: string }
 
@@ -78,19 +79,24 @@ export function GlobalSearch() {
               type="button"
               onMouseDown={() => handleSelect(task)}
               onMouseEnter={() => setActiveIndex(i)}
-              className={`w-full text-left px-3 py-2.5 transition-colors border-b last:border-b-0 ${
+              className={`w-full text-left px-3 py-2.5 transition-colors border-b last:border-b-0 flex items-center justify-between gap-3 ${
                 i === activeIndex ? "bg-muted/70" : "hover:bg-muted/40"
               }`}
             >
-              {task.taskNumber && (
-                <p className="text-[10px] font-mono text-muted-foreground leading-none mb-0.5">
-                  {task.taskNumber}
-                </p>
-              )}
-              <p className="text-sm font-medium truncate leading-snug">{task.name}</p>
-              {task.project && (
-                <p className="text-[10px] text-muted-foreground/70 mt-0.5 truncate">{task.project}</p>
-              )}
+              <div className="min-w-0">
+                {task.taskNumber && (
+                  <p className="text-[10px] font-mono text-muted-foreground leading-none mb-0.5">
+                    {task.taskNumber}
+                  </p>
+                )}
+                <p className="text-sm font-medium truncate leading-snug">{task.name}</p>
+                {task.project && (
+                  <p className="text-[10px] text-muted-foreground/70 mt-0.5 truncate">{task.project}</p>
+                )}
+              </div>
+              <Badge variant="secondary" className="shrink-0 text-[10px] h-5 px-1.5">
+                Tarefa
+              </Badge>
             </button>
           ))}
         </div>
