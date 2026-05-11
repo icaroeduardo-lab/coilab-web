@@ -8,7 +8,7 @@ const COGNITO_DOMAIN = "https://coilab-auth.auth.us-east-1.amazoncognito.com"
 const cognito: Provider = {
   id: "cognito",
   name: "Cognito",
-  type: "oidc",
+  type: "oauth",
   issuer: process.env.COGNITO_ISSUER!,
   clientId: process.env.COGNITO_CLIENT_ID!,
   clientSecret: process.env.COGNITO_CLIENT_SECRET!,
