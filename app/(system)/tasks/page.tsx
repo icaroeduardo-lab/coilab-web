@@ -22,6 +22,10 @@ import {
   Pencil,
   Trash2,
   MoreHorizontal,
+  ChevronDown,
+  X,
+  Search,
+  Columns3,
 } from "lucide-react"
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
@@ -375,6 +379,63 @@ function KanbanColumn({
   )
 }
 
+function FilterPopover({
+  label,
+  options,
+  selected,
+  onChange,
+}: {
+  label: string
+  options: string[]
+  selected: string[]
+  onChange: (values: string[]) => void
+}) {
+  const toggle = (value: string) =>
+    onChange(selected.includes(value) ? selected.filter(v => v !== value) : [...selected, value])
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          className={`gap-1.5 h-8 text-xs transition-colors ${selected.length > 0 ? "border-primary text-primary bg-primary/5 hover:bg-primary/10" : ""}`}
+        >
+          {label}
+          {selected.length > 0 && (
+            <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] px-1">
+              {selected.length}
+            </span>
+          )}
+          <ChevronDown className="h-3 w-3 text-muted-foreground ml-0.5" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-52 p-2" align="start">
+        {options.length === 0 ? (
+          <p className="text-xs text-muted-foreground px-2 py-1.5">Nenhuma opção</p>
+        ) : (
+          <div className="space-y-0.5">
+            {options.map(option => (
+              <label
+                key={option}
+                className="flex items-center gap-2.5 px-2 py-1.5 rounded hover:bg-muted/60 cursor-pointer text-sm"
+              >
+                <input
+                  type="checkbox"
+                  checked={selected.includes(option)}
+                  onChange={() => toggle(option)}
+                  className="rounded border-gray-300 cursor-pointer"
+                />
+                <span className="truncate">{option}</span>
+              </label>
+            ))}
+          </div>
+        )}
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 export default function Page() {
   const { mutate } = useSWRConfig()
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
@@ -389,6 +450,35 @@ export default function Page() {
   const { data: flowsData } = useSWR<Option[]>("/api/flows", fetcher)
 
   const tasks = Array.isArray(tasksData) ? tasksData : []
+
+  const [search, setSearch] = useState("")
+  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(
+    () => new Set(KANBAN_COLUMNS.map(c => c.id))
+  )
+  const toggleColumn = (id: string) =>
+    setVisibleColumns(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  const [filters, setFilters] = useState<{ priority: string[]; project: string[]; applicant: string[] }>({
+    priority: [], project: [], applicant: [],
+  })
+  const hasActiveFilters = search.trim().length > 0 || filters.priority.length > 0 || filters.project.length > 0 || filters.applicant.length > 0
+  const clearFilters = () => { setFilters({ priority: [], project: [], applicant: [] }); setSearch("") }
+
+  const filteredTasks = tasks.filter(task => {
+    if (search.trim()) {
+      const q = search.trim().toLowerCase()
+      const matchesName = task.name.toLowerCase().includes(q)
+      const matchesNumber = task.taskNumber?.toLowerCase().includes(q)
+      if (!matchesName && !matchesNumber) return false
+    }
+    if (filters.priority.length > 0 && !filters.priority.some(p => task.priority.toLowerCase() === p.toLowerCase())) return false
+    if (filters.project.length > 0 && !filters.project.some(p => task.project.toUpperCase() === p)) return false
+    if (filters.applicant.length > 0 && !filters.applicant.some(a => task.applicant.toUpperCase() === a)) return false
+    return true
+  })
 
   const applicants = Array.isArray(applicantsData) ? applicantsData.map(a => ({ ...a, name: a.name.toUpperCase() })).filter((a, i, arr) => arr.findIndex(x => x.name === a.name) === i) : []
   const projects = Array.isArray(projectsData) ? projectsData.map(p => ({ ...p, name: p.name.toUpperCase() })).filter((p, i, arr) => arr.findIndex(x => x.name === p.name) === i) : []
@@ -931,18 +1021,83 @@ export default function Page() {
       </div>
 
       <Tabs defaultValue="kanban">
-        <TabsList>
-          <TabsTrigger value="kanban">Kanban</TabsTrigger>
-          <TabsTrigger value="list">Lista</TabsTrigger>
-        </TabsList>
+        <div className="flex items-center gap-3 flex-wrap">
+          <TabsList>
+            <TabsTrigger value="kanban">Kanban</TabsTrigger>
+            <TabsTrigger value="list">Lista</TabsTrigger>
+          </TabsList>
+          <div className="flex items-center gap-2 flex-wrap">
+            <FilterPopover
+              label="Prioridade"
+              options={["Alta", "Média", "Baixa"]}
+              selected={filters.priority}
+              onChange={v => setFilters(f => ({ ...f, priority: v }))}
+            />
+            <FilterPopover
+              label="Projeto"
+              options={projects.map(p => p.name)}
+              selected={filters.project}
+              onChange={v => setFilters(f => ({ ...f, project: v }))}
+            />
+            <FilterPopover
+              label="Solicitante"
+              options={applicants.map(a => a.name)}
+              selected={filters.applicant}
+              onChange={v => setFilters(f => ({ ...f, applicant: v }))}
+            />
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs">
+                  <Columns3 className="h-3.5 w-3.5" />
+                  Colunas
+                  {visibleColumns.size < KANBAN_COLUMNS.length && (
+                    <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] px-1">
+                      {visibleColumns.size}
+                    </span>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-52 p-2" align="start">
+                <div className="space-y-0.5">
+                  {KANBAN_COLUMNS.map(col => (
+                    <label key={col.id} className="flex items-center gap-2.5 px-2 py-1.5 rounded hover:bg-muted/60 cursor-pointer text-sm">
+                      <input
+                        type="checkbox"
+                        checked={visibleColumns.has(col.id)}
+                        onChange={() => toggleColumn(col.id)}
+                        className="rounded border-gray-300 cursor-pointer"
+                      />
+                      <span className="truncate">{col.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+              <Input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Pesquisar por título ou #número..."
+                className="h-8 pl-8 text-xs w-[48rem]"
+              />
+            </div>
+            {hasActiveFilters && (
+              <Button variant="ghost" size="sm" onClick={clearFilters} className="h-8 px-2 text-xs gap-1 text-muted-foreground hover:text-foreground">
+                <X className="h-3 w-3" />
+                Limpar
+              </Button>
+            )}
+          </div>
+        </div>
         <TabsContent value="kanban" className="pt-4">
           <div className="flex gap-4 overflow-x-auto pb-4">
             <div className="flex gap-4 min-w-full">
-              {KANBAN_COLUMNS.map((column) => (
+              {KANBAN_COLUMNS.filter(c => visibleColumns.has(c.id)).map((column) => (
                 <KanbanColumn
                   key={column.id}
                   column={column}
-                  tasks={sortTasks(tasks.filter(
+                  tasks={sortTasks(filteredTasks.filter(
                     (t) => t.status.toLowerCase() === column.id.toLowerCase()
                   ))}
                   onEdit={handleEditOpen}
@@ -957,7 +1112,7 @@ export default function Page() {
             {tasksLoading ? (
               <div className="flex h-24 items-center justify-center">Carregando...</div>
             ) : (
-              <DataTable columns={columns} data={tasks} />
+              <DataTable columns={columns} data={filteredTasks.filter(t => [...visibleColumns].some(col => t.status.toLowerCase() === col.toLowerCase()))} />
             )}
           </div>
         </TabsContent>
