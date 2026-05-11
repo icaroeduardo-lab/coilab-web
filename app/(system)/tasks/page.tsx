@@ -1035,30 +1035,21 @@ export default function Page() {
               selected={filters.applicant}
               onChange={v => setFilters(f => ({ ...f, applicant: v }))}
             />
-            {hasActiveFilters && (
-              <Button variant="ghost" size="sm" onClick={clearFilters} className="h-8 px-2 text-xs gap-1 text-muted-foreground hover:text-foreground">
-                <X className="h-3 w-3" />
-                Limpar
-              </Button>
-            )}
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
               <Input
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 placeholder="Pesquisar por título ou #número..."
-                className="h-8 pl-8 pr-8 text-xs w-72"
+                className="h-8 pl-8 text-xs w-72"
               />
-              {search && (
-                <button
-                  type="button"
-                  onClick={() => setSearch("")}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              )}
             </div>
+            {hasActiveFilters && (
+              <Button variant="ghost" size="sm" onClick={clearFilters} className="h-8 px-2 text-xs gap-1 text-muted-foreground hover:text-foreground">
+                <X className="h-3 w-3" />
+                Limpar
+              </Button>
+            )}
           </div>
         </div>
         <TabsContent value="kanban" className="pt-4">
