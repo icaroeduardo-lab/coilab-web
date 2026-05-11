@@ -1112,7 +1112,7 @@ export default function Page() {
             {tasksLoading ? (
               <div className="flex h-24 items-center justify-center">Carregando...</div>
             ) : (
-              <DataTable columns={columns} data={filteredTasks} />
+              <DataTable columns={columns} data={filteredTasks.filter(t => [...visibleColumns].some(col => t.status.toLowerCase() === col.toLowerCase()))} />
             )}
           </div>
         </TabsContent>
