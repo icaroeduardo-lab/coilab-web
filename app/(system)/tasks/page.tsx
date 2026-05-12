@@ -26,6 +26,9 @@ import {
   X,
   Search,
   Columns3,
+  Paintbrush,
+  GitBranch,
+  Code2,
 } from "lucide-react"
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
@@ -152,7 +155,7 @@ type Task = {
   createdAt: string
   description?: string
   hasRejection?: boolean
-  phases?: { id: string; status: string; enabled: boolean; name: string }[]
+  phases?: { id: string; type: string; status: string; enabled: boolean; name: string; order?: number }[]
   flows?: { id: number; name: string }[]
 }
 
@@ -271,6 +274,35 @@ function TaskCard({
   const approvedPhases = (task.phases || []).filter(p => p.enabled && p.status === "approved").map(p => p.name)
   const hasApproved = approvedPhases.length > 0
 
+  const PHASE_ICONS: Record<string, React.ElementType> = {
+    discovery: Search,
+    design: Paintbrush,
+    diagram: GitBranch,
+    desenvolvimento: Code2,
+  }
+  const PHASE_STATUS_STYLE: Record<string, string> = {
+    not_started: "bg-muted text-muted-foreground/60",
+    in_progress:  "bg-blue-100 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400",
+    completed:    "bg-amber-100 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400",
+    approved:     "bg-emerald-100 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400",
+    rejected:     "bg-red-100 text-red-600 dark:bg-red-950/40 dark:text-red-400",
+  }
+  const PHASE_LABEL: Record<string, string> = {
+    not_started: "Não iniciado",
+    in_progress: "Em progresso",
+    completed:   "Aguardando Checkout",
+    approved:    "Aprovado",
+    rejected:    "Reprovado",
+  }
+
+  // One bubble per phase type — show latest entry (last wins)
+  const phaseIndicators = Object.values(
+    (task.phases || []).reduce<Record<string, NonNullable<Task["phases"]>[number]>>((acc, p) => {
+      acc[p.type] = p
+      return acc
+    }, {})
+  ).sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+
   return (
     <div className="relative group/card">
       <div className="absolute top-2 right-2 z-10 opacity-0 group-hover/card:opacity-100 transition-opacity flex gap-0.5">
@@ -297,9 +329,27 @@ function TaskCard({
           className="group transition-shadow duration-150 cursor-pointer hover:[box-shadow:0_-2px_8px_0_rgb(0_0_0/0.08),0_4px_8px_0_rgb(0_0_0/0.08)]"
         >
           <CardHeader className="p-4 pb-2 pr-10">
-            {task.taskNumber && (
-              <span className="text-[10px] font-mono text-muted-foreground/70 mb-0.5">{task.taskNumber}</span>
-            )}
+            <div className="flex items-center justify-between mb-0.5 min-h-[14px]">
+              <span className="text-[10px] font-mono text-muted-foreground/70">
+                {task.taskNumber ?? ""}
+              </span>
+              {phaseIndicators.length > 0 && (
+                <div className="flex items-center gap-1">
+                  {phaseIndicators.map(phase => {
+                    const Icon = PHASE_ICONS[phase.type] ?? CircleDot
+                    return (
+                      <div
+                        key={phase.type}
+                        title={`${phase.name}: ${PHASE_LABEL[phase.status] ?? phase.status}`}
+                        className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${PHASE_STATUS_STYLE[phase.status] ?? PHASE_STATUS_STYLE.not_started}`}
+                      >
+                        <Icon className="h-2.5 w-2.5" />
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
             <CardTitle className="text-sm font-bold">{task.name}</CardTitle>
             <CardDescription className="text-xs">{task.project}</CardDescription>
           </CardHeader>
