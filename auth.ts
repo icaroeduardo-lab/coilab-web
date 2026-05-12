@@ -56,6 +56,11 @@ async function refreshCognitoToken(token: Record<string, unknown>): Promise<Reco
 export const { handlers, signIn, signOut, auth } = NextAuth({
   trustHost: true,
   providers: [cognito],
+  logger: {
+    error: (error: unknown) => {
+      console.error("[auth][error-detail]", JSON.stringify(error, Object.getOwnPropertyNames(error as object)))
+    },
+  },
   pages: {
     signIn: "/login",
     error: "/login",
