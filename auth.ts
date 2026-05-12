@@ -9,6 +9,7 @@ const cognito: Provider = {
   id: "cognito",
   name: "Cognito",
   type: "oauth",
+  issuer: process.env.COGNITO_ISSUER!,
   clientId: process.env.COGNITO_CLIENT_ID!,
   clientSecret: process.env.COGNITO_CLIENT_SECRET!,
   authorization: {
@@ -17,6 +18,7 @@ const cognito: Provider = {
   },
   token: `${COGNITO_DOMAIN}/oauth2/token`,
   userinfo: `${COGNITO_DOMAIN}/oauth2/userInfo`,
+  jwks_endpoint: `${process.env.COGNITO_ISSUER}/.well-known/jwks.json`,
   checks: ["pkce", "state"],
   profile(profile) {
     return {
@@ -56,11 +58,6 @@ async function refreshCognitoToken(token: Record<string, unknown>): Promise<Reco
 export const { handlers, signIn, signOut, auth } = NextAuth({
   trustHost: true,
   providers: [cognito],
-  logger: {
-    error: (error: unknown) => {
-      console.error("[auth][error-detail]", JSON.stringify(error, Object.getOwnPropertyNames(error as object)))
-    },
-  },
   pages: {
     signIn: "/login",
     error: "/login",
