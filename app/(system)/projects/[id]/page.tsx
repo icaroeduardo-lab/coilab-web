@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Skeleton } from "@/components/ui/skeleton"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 const textFetcher = (url: string) =>
@@ -82,8 +83,40 @@ export default function ProjectDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      <div className="max-w-5xl mx-auto px-6 py-8 space-y-8">
+        <Skeleton className="h-8 w-20" />
+        <div className="space-y-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-2">
+              <Skeleton className="h-3 w-20" />
+              <Skeleton className="h-8 w-72" />
+            </div>
+            <Skeleton className="h-6 w-20 rounded-full" />
+          </div>
+          <div className="flex gap-4">
+            <Skeleton className="h-4 w-28" />
+            <Skeleton className="h-4 w-24" />
+          </div>
+          <Skeleton className="h-4 w-full max-w-lg" />
+          <Skeleton className="h-4 w-2/3 max-w-md" />
+        </div>
+        <div className="space-y-3">
+          <div className="flex gap-2">
+            <Skeleton className="h-9 w-28 rounded-md" />
+            <Skeleton className="h-9 w-28 rounded-md" />
+          </div>
+          <div className="space-y-2 pt-2">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-4 py-2">
+                <Skeleton className="h-3 w-8" />
+                <Skeleton className="h-3 w-40" />
+                <Skeleton className="h-5 w-14 rounded-full" />
+                <Skeleton className="h-3 w-20" />
+                <Skeleton className="h-3 w-16" />
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     )
   }

@@ -28,6 +28,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { DataTable } from "@/components/data-table"
 import { Badge } from "@/components/ui/badge"
+import { Skeleton } from "@/components/ui/skeleton"
 
 const formSchema = z.object({
   name: z.string().min(2, {
@@ -325,7 +326,23 @@ export default function Page() {
 
       <div className="flex-1">
         {loading ? (
-          <div className="flex h-24 items-center justify-center">Carregando...</div>
+          <div className="space-y-1">
+            <div className="flex items-center gap-4 px-4 py-2 border-b">
+              {[6, 32, 48, 16, 12, 12].map((w, i) => (
+                <Skeleton key={i} className={`h-3 w-${w}`} />
+              ))}
+            </div>
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-4 px-4 py-3">
+                <Skeleton className="h-3 w-6" />
+                <Skeleton className="h-3 w-32" />
+                <Skeleton className="h-3 w-48" />
+                <Skeleton className="h-3 w-16" />
+                <Skeleton className="h-5 w-14 rounded-full" />
+                <Skeleton className="h-3 w-12" />
+              </div>
+            ))}
+          </div>
         ) : (
           <DataTable columns={columns} data={projects} />
         )}

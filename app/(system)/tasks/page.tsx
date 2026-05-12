@@ -99,6 +99,7 @@ import {
   Badge
 } from "@/components/ui/badge"
 import { DataTable } from "@/components/data-table"
+import { Skeleton } from "@/components/ui/skeleton"
 
 const fetcher = async (url: string) => {
   const res = await fetch(url)
@@ -1166,22 +1167,59 @@ export default function Page() {
         <TabsContent value="kanban" className="pt-4">
           <div className="flex gap-4 overflow-x-auto pb-4">
             <div className="flex gap-4 min-w-full">
-              {KANBAN_COLUMNS.filter(c => visibleColumns.has(c.id)).map((column) => (
-                <KanbanColumn
-                  key={column.id}
-                  column={column}
-                  tasks={sortTasks(filteredTasks.filter(
-                    (t) => t.status.toLowerCase() === column.id.toLowerCase()
-                  ))}
-                />
-              ))}
+              {tasksLoading ? (
+                KANBAN_COLUMNS.filter(c => visibleColumns.has(c.id)).map((column) => (
+                  <div key={column.id} className={`flex flex-col gap-3 bg-muted/50 p-4 rounded-xl min-w-72 w-full border-t-2 ${column.accent}`}>
+                    <div className="flex items-center justify-between">
+                      <Skeleton className="h-4 w-24" />
+                      <Skeleton className="h-4 w-6 rounded-full" />
+                    </div>
+                    {Array.from({ length: Math.floor(Math.random() * 2) + 2 }).map((_, i) => (
+                      <div key={i} className="bg-background rounded-lg p-3 space-y-2.5 border">
+                        <Skeleton className="h-3 w-3/4" />
+                        <Skeleton className="h-3 w-1/2" />
+                        <div className="flex gap-1.5 pt-1">
+                          <Skeleton className="h-5 w-14 rounded-full" />
+                          <Skeleton className="h-5 w-12 rounded-full" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ))
+              ) : (
+                KANBAN_COLUMNS.filter(c => visibleColumns.has(c.id)).map((column) => (
+                  <KanbanColumn
+                    key={column.id}
+                    column={column}
+                    tasks={sortTasks(filteredTasks.filter(
+                      (t) => t.status.toLowerCase() === column.id.toLowerCase()
+                    ))}
+                  />
+                ))
+              )}
             </div>
           </div>
         </TabsContent>
         <TabsContent value="list" className="pt-4">
           <div className="flex-1">
             {tasksLoading ? (
-              <div className="flex h-24 items-center justify-center">Carregando...</div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-4 px-4 py-2 border-b">
+                  {[6, 36, 24, 16, 16, 16].map((w, i) => (
+                    <Skeleton key={i} className={`h-3 w-${w}`} />
+                  ))}
+                </div>
+                {Array.from({ length: 10 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-4 px-4 py-3">
+                    <Skeleton className="h-3 w-6" />
+                    <Skeleton className="h-3 w-40" />
+                    <Skeleton className="h-3 w-24" />
+                    <Skeleton className="h-5 w-14 rounded-full" />
+                    <Skeleton className="h-5 w-14 rounded-full" />
+                    <Skeleton className="h-3 w-20" />
+                  </div>
+                ))}
+              </div>
             ) : (
               <DataTable columns={columns} data={filteredTasks.filter(t => [...visibleColumns].some(col => t.status.toLowerCase() === col.toLowerCase()))} />
             )}

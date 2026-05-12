@@ -22,6 +22,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "sonner"
 import { z } from "zod"
+import { Skeleton } from "@/components/ui/skeleton"
 
 const issueCompleteSchema = z.object({
   title: z.string().min(1, "Título é obrigatório"),
@@ -1611,14 +1612,40 @@ export default function TaskDetailPage() {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background p-8">
-        <div className="max-w-4xl mx-auto">
-          <Button variant="ghost" size="sm" onClick={() => router.back()} className="mb-6">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Voltar
-          </Button>
-          <div className="flex items-center justify-center h-64">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <div className="max-w-4xl mx-auto space-y-6">
+          <Skeleton className="h-8 w-20" />
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-3 w-16" />
+              <Skeleton className="h-5 w-20 rounded-full" />
+            </div>
+            <Skeleton className="h-7 w-2/3" />
+            <Skeleton className="h-4 w-full max-w-xl" />
+            <Skeleton className="h-4 w-1/2 max-w-md" />
           </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="space-y-1.5 p-3 rounded-lg border">
+                <Skeleton className="h-3 w-16" />
+                <Skeleton className="h-4 w-24" />
+              </div>
+            ))}
+          </div>
+          <Card>
+            <CardHeader className="pb-3">
+              <Skeleton className="h-4 w-20" />
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-4 py-2 border-b last:border-0">
+                  <Skeleton className="h-6 w-6 rounded-full" />
+                  <Skeleton className="h-3 w-28" />
+                  <Skeleton className="h-5 w-20 rounded-full" />
+                  <Skeleton className="h-3 w-24 ml-auto" />
+                </div>
+              ))}
+            </CardContent>
+          </Card>
         </div>
       </div>
     )

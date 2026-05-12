@@ -16,6 +16,7 @@ import {
 
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Skeleton } from "@/components/ui/skeleton"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -139,7 +140,7 @@ function priorityBarClass(priority: string) {
 }
 
 export default function DashboardPage() {
-  const { data } = useSWR<Task[]>("/api/tasks", fetcher)
+  const { data, isLoading } = useSWR<Task[]>("/api/tasks", fetcher)
   const tasks = Array.isArray(data) ? data : []
 
   const stats = useMemo(() => {
@@ -196,6 +197,84 @@ export default function DashboardPage() {
     month: "long",
     day: "numeric",
   })
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <div className="p-8 flex flex-col gap-8 max-w-7xl mx-auto">
+          <div className="flex items-end justify-between">
+            <div className="space-y-2">
+              <Skeleton className="h-3 w-32" />
+              <Skeleton className="h-9 w-48" />
+              <Skeleton className="h-0.5 w-12" />
+            </div>
+            <Skeleton className="h-3 w-24" />
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Card key={i} className="border-l-4 border-l-muted">
+                <CardContent className="pt-4 pb-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Skeleton className="h-3 w-24" />
+                    <Skeleton className="h-4 w-4 rounded-full" />
+                  </div>
+                  <Skeleton className="h-8 w-12" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card className="md:col-span-2">
+              <CardHeader className="pb-3"><Skeleton className="h-3 w-32" /></CardHeader>
+              <CardContent className="space-y-4">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-3">
+                    <Skeleton className="h-3 w-24" />
+                    <Skeleton className="h-2 flex-1 rounded-full" />
+                    <Skeleton className="h-3 w-6" />
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-3"><Skeleton className="h-3 w-24" /></CardHeader>
+              <CardContent className="space-y-4">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-3">
+                    <Skeleton className="h-3 w-16" />
+                    <Skeleton className="h-2 flex-1 rounded-full" />
+                    <Skeleton className="h-3 w-6" />
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          </div>
+          <Card>
+            <CardHeader className="pb-3 flex flex-row items-center justify-between">
+              <Skeleton className="h-3 w-32" />
+              <Skeleton className="h-3 w-16" />
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="divide-y">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="flex items-center justify-between px-6 py-3">
+                    <div className="space-y-1.5">
+                      <Skeleton className="h-3.5 w-48" />
+                      <Skeleton className="h-3 w-28" />
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Skeleton className="h-5 w-14 rounded-full" />
+                      <Skeleton className="h-3 w-20 hidden sm:block" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-background">
