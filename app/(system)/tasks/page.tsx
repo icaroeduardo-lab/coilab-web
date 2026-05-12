@@ -99,6 +99,7 @@ import {
   Badge
 } from "@/components/ui/badge"
 import { DataTable } from "@/components/data-table"
+import { Skeleton } from "@/components/ui/skeleton"
 
 const fetcher = async (url: string) => {
   const res = await fetch(url)
@@ -391,8 +392,8 @@ function KanbanColumn({
   tasks: Task[]
 }) {
   return (
-    <div className={`flex flex-col gap-4 bg-muted/50 p-4 rounded-xl min-w-72 w-full border-t-2 ${column.accent}`}>
-      <div className="flex items-center justify-between px-1">
+    <div className={`flex flex-col gap-4 bg-muted/50 p-4 rounded-xl min-w-72 w-full border-t-2 h-full ${column.accent}`}>
+      <div className="flex items-center justify-between px-1 shrink-0">
         <div className="flex items-center gap-2">
           <h3 className="font-semibold text-sm">{column.name}</h3>
           {column.externalTeam && (
@@ -405,8 +406,8 @@ function KanbanColumn({
           {tasks.length}
         </span>
       </div>
-      <p className="text-[11px] text-muted-foreground/70 px-1 -mt-2">{column.description}</p>
-      <div className="flex flex-col gap-3 min-h-50">
+      <p className="text-[11px] text-muted-foreground/70 px-1 -mt-2 shrink-0">{column.description}</p>
+      <div className="flex flex-col gap-3 overflow-y-auto flex-1 pr-0.5">
         {tasks.map((task) => (
           <TaskCard key={task.id} task={task} />
         ))}
@@ -490,6 +491,7 @@ export default function Page() {
   const [isDeleting, setIsDeleting] = useState(false)
 
   const { data: tasksData, isLoading: tasksLoading } = useSWR<Task[]>("/api/tasks", fetcher)
+  const isPageLoading = tasksLoading
 
   const { data: applicantsData } = useSWR<Option[]>("/api/applicants", fetcher)
   const { data: projectsData } = useSWR<Option[]>("/api/projects", fetcher)
@@ -793,19 +795,20 @@ export default function Page() {
   ]
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="flex flex-col gap-6 p-6 h-screen overflow-hidden">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Tarefas</h1>
           <div className="h-0.5 w-8 bg-primary rounded-full mt-1.5" />
         </div>
+        {isPageLoading && <Skeleton className="h-10 w-36 rounded-lg" />}
         <Dialog open={isCreateDialogOpen} onOpenChange={handleDialogOpenChange}>
-          <DialogTrigger asChild>
+          {!isPageLoading && <DialogTrigger asChild>
             <Button size={"lg"} className="px-5 gap-2">
               <Plus className="h-4 w-4" />
               Nova tarefa
             </Button>
-          </DialogTrigger>
+          </DialogTrigger>}
           <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Nova Tarefa</DialogTitle>
@@ -1093,7 +1096,17 @@ export default function Page() {
         </Dialog>
       </div>
 
-      <Tabs defaultValue="kanban">
+      <Tabs defaultValue="kanban" className="flex-1 flex flex-col min-h-0">
+        {isPageLoading ? (
+          <div className="flex items-center gap-3">
+            <Skeleton className="h-8 w-16 rounded-md" />
+            <Skeleton className="h-8 w-24 rounded-md" />
+            <Skeleton className="h-8 w-20 rounded-md" />
+            <Skeleton className="h-8 w-24 rounded-md" />
+            <Skeleton className="h-8 w-20 rounded-md" />
+            <Skeleton className="h-8 flex-1 rounded-md" />
+          </div>
+        ) : (
         <div className="flex items-center gap-3 flex-wrap">
           <TabsList className="bg-muted/40 border border-border/50 p-0.5 h-8">
             <TabsTrigger value="kanban" title="Kanban" className="px-2 h-7 data-[state=active]:bg-background data-[state=active]:shadow-sm"><SquareKanban className="h-3.5 w-3.5" /></TabsTrigger>
@@ -1163,25 +1176,68 @@ export default function Page() {
             )}
           </div>
         </div>
-        <TabsContent value="kanban" className="pt-4">
-          <div className="flex gap-4 overflow-x-auto pb-4">
-            <div className="flex gap-4 min-w-full">
-              {KANBAN_COLUMNS.filter(c => visibleColumns.has(c.id)).map((column) => (
-                <KanbanColumn
-                  key={column.id}
-                  column={column}
-                  tasks={sortTasks(filteredTasks.filter(
-                    (t) => t.status.toLowerCase() === column.id.toLowerCase()
-                  ))}
-                />
-              ))}
+        )}
+        <TabsContent value="kanban" className="pt-4 flex-1 min-h-0 overflow-hidden">
+          <div className="h-full flex gap-4 overflow-x-auto pb-4">
+            <div className="flex gap-4 min-w-full h-full">
+              {isPageLoading ? (
+                KANBAN_COLUMNS.filter(c => visibleColumns.has(c.id)).map((column) => (
+                  <div key={column.id} className={`flex flex-col gap-3 bg-muted/50 p-4 rounded-xl min-w-72 w-full border-t-2 h-full ${column.accent}`}>
+                    <div className="flex items-center justify-between">
+                      <Skeleton className="h-4 w-24" />
+                      <Skeleton className="h-4 w-6 rounded-full" />
+                    </div>
+                    {Array.from({ length: 3 }).map((_, i) => (
+                      <div key={i} className="bg-background rounded-lg p-3 space-y-2.5 border">
+                        <Skeleton className="h-3 w-3/4" />
+                        <Skeleton className="h-3 w-1/2" />
+                        <div className="flex gap-1.5 pt-1">
+                          <Skeleton className="h-5 w-14 rounded-full" />
+                          <Skeleton className="h-5 w-12 rounded-full" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ))
+              ) : (
+                KANBAN_COLUMNS.filter(c => visibleColumns.has(c.id)).map((column) => (
+                  <KanbanColumn
+                    key={column.id}
+                    column={column}
+                    tasks={sortTasks(filteredTasks.filter(
+                      (t) => t.status.toLowerCase() === column.id.toLowerCase()
+                    ))}
+                  />
+                ))
+              )}
             </div>
           </div>
         </TabsContent>
-        <TabsContent value="list" className="pt-4">
-          <div className="flex-1">
-            {tasksLoading ? (
-              <div className="flex h-24 items-center justify-center">Carregando...</div>
+        <TabsContent value="list" className="pt-4 flex-1 min-h-0 overflow-auto">
+          <div className="w-full">
+            {isPageLoading ? (
+              <div className="rounded-xl border overflow-hidden">
+                <div className="flex items-center gap-4 px-4 py-3 bg-muted/40 border-b">
+                  <Skeleton className="h-3 w-8 shrink-0" />
+                  <Skeleton className="h-3 flex-[3]" />
+                  <Skeleton className="h-3 flex-[2]" />
+                  <Skeleton className="h-3 flex-1" />
+                  <Skeleton className="h-3 flex-1" />
+                  <Skeleton className="h-3 flex-1" />
+                  <Skeleton className="h-3 w-16 shrink-0" />
+                </div>
+                {Array.from({ length: 12 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-4 px-4 py-3 border-b last:border-0">
+                    <Skeleton className="h-3 w-8 shrink-0" />
+                    <Skeleton className="h-3 flex-[3]" />
+                    <Skeleton className="h-3 flex-[2]" />
+                    <Skeleton className="h-5 flex-1 rounded-full" />
+                    <Skeleton className="h-5 flex-1 rounded-full" />
+                    <Skeleton className="h-3 flex-1" />
+                    <Skeleton className="h-3 w-16 shrink-0" />
+                  </div>
+                ))}
+              </div>
             ) : (
               <DataTable columns={columns} data={filteredTasks.filter(t => [...visibleColumns].some(col => t.status.toLowerCase() === col.toLowerCase()))} />
             )}
