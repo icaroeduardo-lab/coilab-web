@@ -9,7 +9,6 @@ const cognito: Provider = {
   id: "cognito",
   name: "Cognito",
   type: "oauth",
-  issuer: process.env.COGNITO_ISSUER!,
   clientId: process.env.COGNITO_CLIENT_ID!,
   clientSecret: process.env.COGNITO_CLIENT_SECRET!,
   authorization: {
@@ -18,7 +17,6 @@ const cognito: Provider = {
   },
   token: `${COGNITO_DOMAIN}/oauth2/token`,
   userinfo: `${COGNITO_DOMAIN}/oauth2/userInfo`,
-  jwks_endpoint: `${process.env.COGNITO_ISSUER}/.well-known/jwks.json`,
   checks: ["pkce", "state"],
   profile(profile) {
     return {
@@ -60,6 +58,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [cognito],
   pages: {
     signIn: "/login",
+    error: "/login",
   },
   callbacks: {
     async jwt({ token, account }) {
