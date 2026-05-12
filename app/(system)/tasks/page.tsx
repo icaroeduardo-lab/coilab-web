@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
@@ -451,19 +451,42 @@ export default function Page() {
 
   const tasks = Array.isArray(tasksData) ? tasksData : []
 
+  const STORAGE_KEY = "tasks-page-prefs"
+
   const [search, setSearch] = useState("")
-  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(
-    () => new Set(KANBAN_COLUMNS.map(c => c.id))
-  )
+  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY)
+      if (stored) {
+        const parsed = JSON.parse(stored)
+        if (Array.isArray(parsed.visibleColumns)) return new Set<string>(parsed.visibleColumns)
+      }
+    } catch {}
+    return new Set(KANBAN_COLUMNS.map(c => c.id))
+  })
   const toggleColumn = (id: string) =>
     setVisibleColumns(prev => {
       const next = new Set(prev)
       next.has(id) ? next.delete(id) : next.add(id)
       return next
     })
-  const [filters, setFilters] = useState<{ priority: string[]; project: string[]; applicant: string[] }>({
-    priority: [], project: [], applicant: [],
+  const [filters, setFilters] = useState<{ priority: string[]; project: string[]; applicant: string[] }>(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY)
+      if (stored) {
+        const parsed = JSON.parse(stored)
+        if (parsed.filters) return parsed.filters
+      }
+    } catch {}
+    return { priority: [], project: [], applicant: [] }
   })
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      filters,
+      visibleColumns: [...visibleColumns],
+    }))
+  }, [filters, visibleColumns])
   const hasActiveFilters = search.trim().length > 0 || filters.priority.length > 0 || filters.project.length > 0 || filters.applicant.length > 0
   const clearFilters = () => { setFilters({ priority: [], project: [], applicant: [] }); setSearch("") }
 
