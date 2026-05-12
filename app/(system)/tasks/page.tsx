@@ -268,6 +268,9 @@ function TaskCard({
     ? (task.phases || []).filter(p => p.enabled && p.status === "rejected").map(p => p.name)
     : []
 
+  const approvedPhases = (task.phases || []).filter(p => p.enabled && p.status === "approved").map(p => p.name)
+  const hasApproved = approvedPhases.length > 0
+
   return (
     <div className="relative group/card">
       <div className="absolute top-2 right-2 z-10 opacity-0 group-hover/card:opacity-100 transition-opacity flex gap-0.5">
@@ -289,7 +292,7 @@ function TaskCard({
           style={{
             borderTopWidth: "2px",
             borderTopStyle: "solid",
-            borderTopColor: isRejected ? "rgb(248 113 113)" : "rgb(203 213 225)",
+            borderTopColor: isRejected ? "rgb(248 113 113)" : hasApproved ? "rgb(52 211 153)" : "rgb(203 213 225)",
           }}
           className="group transition-shadow duration-150 cursor-pointer hover:[box-shadow:0_-2px_8px_0_rgb(0_0_0/0.08),0_4px_8px_0_rgb(0_0_0/0.08)]"
         >
@@ -306,6 +309,12 @@ function TaskCard({
                 <div className="flex items-center gap-1.5 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 rounded px-2 py-1 mb-1">
                   <CircleX className="h-3 w-3 shrink-0" />
                   <span className="text-[11px]">Reprovado: {rejectedPhases.join(", ")}</span>
+                </div>
+              )}
+              {hasApproved && (
+                <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 rounded px-2 py-1 mb-1">
+                  <CircleCheck className="h-3 w-3 shrink-0" />
+                  <span className="text-[11px]">Aprovado: {approvedPhases.join(", ")}</span>
                 </div>
               )}
               <p className="line-clamp-3 text-muted-foreground mb-2">{task.description}</p>
