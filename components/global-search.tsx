@@ -3,18 +3,34 @@
 import { useState, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import useSWR from "swr"
-import { Search } from "lucide-react"
+import { Search, Paintbrush, GitBranch, Code2 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 
-type Task = { id: string; name: string; taskNumber?: string; project?: string }
+type Phase = { id: string; type: string; status: string; order?: number }
+type Task = { id: string; name: string; taskNumber?: string; project?: string; status?: string; phases?: Phase[] }
 type Project = { id: string; name: string; projectNumber?: string; description?: string }
 
 type Result =
-  | { kind: "task"; id: string; number?: string; title: string; sub?: string }
+  | { kind: "task"; id: string; number?: string; title: string; sub?: string; status?: string; phases?: Phase[] }
   | { kind: "project"; id: string; number?: string; title: string; sub?: string }
 
 const fetcher = (url: string) => fetch(url).then(r => r.json())
+
+const PHASE_ICONS: Record<string, React.ElementType> = {
+  discovery: Search,
+  design: Paintbrush,
+  diagram: GitBranch,
+  desenvolvimento: Code2,
+}
+
+const PHASE_TYPE_STYLE: Record<string, string> = {
+  discovery: "bg-violet-100 text-violet-600 dark:bg-violet-950/40 dark:text-violet-400",
+  design: "bg-pink-100 text-pink-600 dark:bg-pink-950/40 dark:text-pink-400",
+  diagram: "bg-cyan-100 text-cyan-600 dark:bg-cyan-950/40 dark:text-cyan-400",
+  desenvolvimento: "bg-orange-100 text-orange-600 dark:bg-orange-950/40 dark:text-orange-400",
+}
+
 
 export function GlobalSearch() {
   const router = useRouter()
@@ -37,7 +53,7 @@ export function GlobalSearch() {
         ...tasks
           .filter(t => t.name.toLowerCase().includes(q) || t.taskNumber?.toLowerCase().includes(q))
           .slice(0, 5)
-          .map(t => ({ kind: "task" as const, id: t.id, number: t.taskNumber, title: t.name, sub: t.project })),
+          .map(t => ({ kind: "task" as const, id: t.id, number: t.taskNumber, title: t.name, sub: t.project, status: t.status, phases: t.phases })),
         ...projects
           .filter(p => p.name.toLowerCase().includes(q) || p.projectNumber?.toLowerCase().includes(q))
           .slice(0, 5)
@@ -74,37 +90,66 @@ export function GlobalSearch() {
       />
       {open && results.length > 0 && (
         <div className="absolute top-full mt-1.5 left-0 right-0 z-50 rounded-lg border bg-popover shadow-lg overflow-hidden">
-          {results.map((r, i) => (
-            <button
-              key={`${r.kind}-${r.id}`}
-              type="button"
-              onMouseDown={() => handleSelect(r)}
-              onMouseEnter={() => setActiveIndex(i)}
-              className={`w-full text-left px-3 py-2.5 transition-colors border-b last:border-b-0 flex items-center justify-between gap-3 ${
-                i === activeIndex ? "bg-muted/70" : "hover:bg-muted/40"
-              }`}
-            >
-              <div className="min-w-0">
-                {r.number && (
-                  <p className="text-[10px] font-mono text-muted-foreground leading-none mb-0.5">{r.number}</p>
-                )}
-                <p className="text-sm font-medium truncate leading-snug">{r.title}</p>
-                {r.sub && (
-                  <p className="text-[10px] text-muted-foreground/70 mt-0.5 truncate">{r.sub}</p>
-                )}
-              </div>
-              <Badge
-                variant="secondary"
-                className={`shrink-0 text-[10px] h-5 px-1.5 border ${
-                  r.kind === "project"
-                    ? "bg-violet-100 text-violet-700 border-violet-200 dark:bg-violet-950/30 dark:text-violet-400 dark:border-violet-800"
-                    : "bg-sky-100 text-sky-700 border-sky-200 dark:bg-sky-950/30 dark:text-sky-400 dark:border-sky-800"
+          {results.map((r, i) => {
+            const phaseIndicators = r.kind === "task" && r.phases
+              ? Object.values(
+                  r.phases.reduce<Record<string, Phase>>((acc, p) => { acc[p.type] = p; return acc }, {})
+                ).sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+              : []
+
+            return (
+              <button
+                key={`${r.kind}-${r.id}`}
+                type="button"
+                onMouseDown={() => handleSelect(r)}
+                onMouseEnter={() => setActiveIndex(i)}
+                className={`w-full text-left px-3 py-2.5 transition-colors border-b last:border-b-0 flex items-center justify-between gap-3 ${
+                  i === activeIndex ? "bg-muted/70" : "hover:bg-muted/40"
                 }`}
               >
-                {r.kind === "task" ? "Tarefa" : "Projeto"}
-              </Badge>
-            </button>
-          ))}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    {r.number && (
+                      <span className="text-[10px] font-mono text-muted-foreground leading-none">{r.number}</span>
+                    )}
+                    {phaseIndicators.length > 0 && (
+                      <div className="flex items-center gap-1">
+                        {phaseIndicators.map(p => {
+                          const Icon = PHASE_ICONS[p.type] ?? Search
+                          const style = PHASE_TYPE_STYLE[p.type] ?? "bg-gray-100 text-gray-600"
+                          return (
+                            <span
+                              key={p.type}
+                              className={`inline-flex items-center justify-center w-4 h-4 rounded-full ${style}`}
+                              title={p.type}
+                            >
+                              <Icon className="w-2.5 h-2.5" />
+                            </span>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-sm font-medium truncate leading-snug">{r.title}</p>
+                  {r.sub && (
+                    <p className="text-[10px] text-muted-foreground/70 mt-0.5 truncate">{r.sub}</p>
+                  )}
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <Badge
+                    variant="secondary"
+                    className={`text-[10px] h-5 px-1.5 border ${
+                      r.kind === "project"
+                        ? "bg-violet-100 text-violet-700 border-violet-200 dark:bg-violet-950/30 dark:text-violet-400 dark:border-violet-800"
+                        : "bg-sky-100 text-sky-700 border-sky-200 dark:bg-sky-950/30 dark:text-sky-400 dark:border-sky-800"
+                    }`}
+                  >
+                    {r.kind === "task" ? "Tarefa" : "Projeto"}
+                  </Badge>
+                </div>
+              </button>
+            )
+          })}
         </div>
       )}
       {open && q && results.length === 0 && (
