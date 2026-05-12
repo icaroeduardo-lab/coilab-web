@@ -17,6 +17,15 @@ type Result =
 
 const fetcher = (url: string) => fetch(url).then(r => r.json())
 
+const STATUS_BADGE_CLASS: Record<string, string> = {
+  "Backlog":         "bg-gray-100 text-gray-600 border-gray-200 dark:bg-gray-900/40 dark:text-gray-400 dark:border-gray-700",
+  "Em Execução":     "bg-sky-100 text-sky-700 border-sky-200 dark:bg-sky-950/30 dark:text-sky-400 dark:border-sky-800",
+  "Checkout":        "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800",
+  "Desenvolvimento": "bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-950/30 dark:text-orange-400 dark:border-orange-800",
+  "Testes":          "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-800",
+  "Concluído":       "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800",
+}
+
 const PHASE_ICONS: Record<string, React.ElementType> = {
   discovery: Search,
   design: Paintbrush,
@@ -139,13 +148,7 @@ export function GlobalSearch() {
                   {r.kind === "task" && r.status && (
                     <Badge
                       variant="secondary"
-                      className={`text-[10px] h-5 px-1.5 border ${
-                        r.status === "Concluído"
-                          ? "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800"
-                          : r.status === "Em Execução"
-                          ? "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800"
-                          : "bg-muted text-muted-foreground border-border"
-                      }`}
+                      className={`text-[10px] h-5 px-1.5 border ${STATUS_BADGE_CLASS[r.status] ?? "bg-muted text-muted-foreground border-border"}`}
                     >
                       {r.status}
                     </Badge>
