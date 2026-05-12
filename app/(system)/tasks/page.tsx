@@ -29,6 +29,8 @@ import {
   Paintbrush,
   GitBranch,
   Code2,
+  SquareKanban,
+  LayoutList,
 } from "lucide-react"
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
@@ -299,7 +301,7 @@ function TaskCard({ task }: { task: Task }) {
   return (
     <div className="relative">
       {phaseIndicators.length > 0 && (
-        <div className="absolute top-3 right-3 flex items-center gap-1 pointer-events-none">
+        <div className="absolute top-3 right-3 flex items-center gap-1">
           {phaseIndicators.map(phase => {
             const Icon = PHASE_ICONS[phase.type] ?? CircleDot
             return (
@@ -449,6 +451,16 @@ function FilterPopover({
           <p className="text-xs text-muted-foreground px-2 py-1.5">Nenhuma opção</p>
         ) : (
           <div className="space-y-0.5">
+            <label className="flex items-center gap-2.5 px-2 py-1.5 rounded hover:bg-muted/60 cursor-pointer text-sm border-b border-border/50 mb-1 pb-2">
+              <input
+                type="checkbox"
+                checked={selected.length === options.length}
+                ref={el => { if (el) el.indeterminate = selected.length > 0 && selected.length < options.length }}
+                onChange={() => onChange(selected.length === options.length ? [] : [...options])}
+                className="rounded border-gray-300 cursor-pointer"
+              />
+              <span className="truncate text-muted-foreground">Selecionar tudo</span>
+            </label>
             {options.map(option => (
               <label
                 key={option}
@@ -488,16 +500,19 @@ export default function Page() {
   const STORAGE_KEY = "tasks-page-prefs"
 
   const [search, setSearch] = useState("")
-  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(() => {
+  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(
+    () => new Set(KANBAN_COLUMNS.map(c => c.id))
+  )
+
+  useEffect(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY)
       if (stored) {
         const parsed = JSON.parse(stored)
-        if (Array.isArray(parsed.visibleColumns)) return new Set<string>(parsed.visibleColumns)
+        if (Array.isArray(parsed.visibleColumns)) setVisibleColumns(new Set<string>(parsed.visibleColumns))
       }
     } catch {}
-    return new Set(KANBAN_COLUMNS.map(c => c.id))
-  })
+  }, [])
   const toggleColumn = (id: string) =>
     setVisibleColumns(prev => {
       const next = new Set(prev)
@@ -1080,9 +1095,9 @@ export default function Page() {
 
       <Tabs defaultValue="kanban">
         <div className="flex items-center gap-3 flex-wrap">
-          <TabsList>
-            <TabsTrigger value="kanban">Kanban</TabsTrigger>
-            <TabsTrigger value="list">Lista</TabsTrigger>
+          <TabsList className="bg-muted/40 border border-border/50 p-0.5 h-8">
+            <TabsTrigger value="kanban" title="Kanban" className="px-2 h-7 data-[state=active]:bg-background data-[state=active]:shadow-sm"><SquareKanban className="h-3.5 w-3.5" /></TabsTrigger>
+            <TabsTrigger value="list" title="Lista" className="px-2 h-7 data-[state=active]:bg-background data-[state=active]:shadow-sm"><LayoutList className="h-3.5 w-3.5" /></TabsTrigger>
           </TabsList>
           <div className="flex items-center gap-2 flex-wrap">
             <FilterPopover
@@ -1109,7 +1124,7 @@ export default function Page() {
                   <Columns3 className="h-3.5 w-3.5" />
                   Colunas
                   {visibleColumns.size < KANBAN_COLUMNS.length && (
-                    <span suppressHydrationWarning className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] px-1">
+                    <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] px-1">
                       {visibleColumns.size}
                     </span>
                   )}
