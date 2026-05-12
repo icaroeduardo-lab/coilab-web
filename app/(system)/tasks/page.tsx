@@ -369,7 +369,6 @@ function TaskCard({
               <p className="line-clamp-3 text-muted-foreground mb-2">{task.description}</p>
               <div className="flex flex-wrap gap-1 mb-2">
                 <PriorityBadge priority={task.priority} />
-                <StatusBadge status={task.status} />
                 <Badge variant="outline" className="gap-1">
                   <User />
                   {task.applicant}
