@@ -257,15 +257,7 @@ function StatusBadge({ status }: { status: string }) {
   )
 }
 
-function TaskCard({
-  task,
-  onEdit,
-  onDelete,
-}: {
-  task: Task
-  onEdit: (task: Task) => void
-  onDelete: (task: Task) => void
-}) {
+function TaskCard({ task }: { task: Task }) {
   const isRejected = task.hasRejection && task.status === "Em Execução"
   const rejectedPhases = isRejected
     ? (task.phases || []).filter(p => p.enabled && p.status === "rejected").map(p => p.name)
@@ -303,21 +295,7 @@ function TaskCard({
   ).sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
 
   return (
-    <div className="relative group/card">
-      <div className="absolute top-2 right-2 z-10 opacity-0 group-hover/card:opacity-100 transition-opacity flex gap-0.5">
-        <button
-          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onEdit(task) }}
-          className="h-6 w-6 flex items-center justify-center rounded bg-background/90 backdrop-blur-sm border border-border/50 text-muted-foreground hover:text-foreground hover:border-border transition-colors shadow-sm"
-        >
-          <Pencil className="h-3 w-3" />
-        </button>
-        <button
-          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete(task) }}
-          className="h-6 w-6 flex items-center justify-center rounded bg-background/90 backdrop-blur-sm border border-border/50 text-muted-foreground hover:text-destructive hover:border-destructive/50 transition-colors shadow-sm"
-        >
-          <Trash2 className="h-3 w-3" />
-        </button>
-      </div>
+    <div className="relative">
       <Link href={`/tasks/${task.id}`}>
         <Card
           style={{
@@ -404,13 +382,9 @@ function sortTasks(tasks: Task[]): Task[] {
 function KanbanColumn({
   column,
   tasks,
-  onEdit,
-  onDelete,
 }: {
   column: KanbanColumnConfig
   tasks: Task[]
-  onEdit: (task: Task) => void
-  onDelete: (task: Task) => void
 }) {
   return (
     <div className={`flex flex-col gap-4 bg-muted/50 p-4 rounded-xl min-w-72 w-full border-t-2 ${column.accent}`}>
@@ -430,7 +404,7 @@ function KanbanColumn({
       <p className="text-[11px] text-muted-foreground/70 px-1 -mt-2">{column.description}</p>
       <div className="flex flex-col gap-3 min-h-50">
         {tasks.map((task) => (
-          <TaskCard key={task.id} task={task} onEdit={onEdit} onDelete={onDelete} />
+          <TaskCard key={task.id} task={task} />
         ))}
       </div>
     </div>
@@ -1182,8 +1156,6 @@ export default function Page() {
                   tasks={sortTasks(filteredTasks.filter(
                     (t) => t.status.toLowerCase() === column.id.toLowerCase()
                   ))}
-                  onEdit={handleEditOpen}
-                  onDelete={setDeletingTask}
                 />
               ))}
             </div>
