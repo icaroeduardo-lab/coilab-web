@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
@@ -26,6 +26,9 @@ import {
   X,
   Search,
   Columns3,
+  Paintbrush,
+  GitBranch,
+  Code2,
 } from "lucide-react"
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
@@ -152,7 +155,7 @@ type Task = {
   createdAt: string
   description?: string
   hasRejection?: boolean
-  phases?: { id: string; status: string; enabled: boolean; name: string }[]
+  phases?: { id: string; type: string; status: string; enabled: boolean; name: string; order?: number }[]
   flows?: { id: number; name: string }[]
 }
 
@@ -254,49 +257,78 @@ function StatusBadge({ status }: { status: string }) {
   )
 }
 
-function TaskCard({
-  task,
-  onEdit,
-  onDelete,
-}: {
-  task: Task
-  onEdit: (task: Task) => void
-  onDelete: (task: Task) => void
-}) {
+function TaskCard({ task }: { task: Task }) {
   const isRejected = task.hasRejection && task.status === "Em Execução"
   const rejectedPhases = isRejected
     ? (task.phases || []).filter(p => p.enabled && p.status === "rejected").map(p => p.name)
     : []
 
+  const approvedPhases = (task.phases || []).filter(p => p.enabled && p.status === "approved").map(p => p.name)
+  const hasApproved = approvedPhases.length > 0
+  const isConcluido = task.status === "Concluído"
+
+  const PHASE_ICONS: Record<string, React.ElementType> = {
+    discovery: Search,
+    design: Paintbrush,
+    diagram: GitBranch,
+    desenvolvimento: Code2,
+  }
+  const PHASE_TYPE_STYLE: Record<string, string> = {
+    discovery:    "bg-violet-100 text-violet-600 dark:bg-violet-950/40 dark:text-violet-400",
+    design:       "bg-pink-100 text-pink-600 dark:bg-pink-950/40 dark:text-pink-400",
+    diagram:      "bg-cyan-100 text-cyan-600 dark:bg-cyan-950/40 dark:text-cyan-400",
+    desenvolvimento: "bg-orange-100 text-orange-600 dark:bg-orange-950/40 dark:text-orange-400",
+  }
+  const PHASE_LABEL: Record<string, string> = {
+    not_started: "Não iniciado",
+    in_progress: "Em progresso",
+    completed:   "Aguardando Checkout",
+    approved:    "Aprovado",
+    rejected:    "Reprovado",
+    cancelled:   "Cancelado",
+  }
+
+  // One bubble per phase type — show latest entry (last wins)
+  const phaseIndicators = Object.values(
+    (task.phases || []).reduce<Record<string, NonNullable<Task["phases"]>[number]>>((acc, p) => {
+      acc[p.type] = p
+      return acc
+    }, {})
+  ).sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+
   return (
-    <div className="relative group/card">
-      <div className="absolute top-2 right-2 z-10 opacity-0 group-hover/card:opacity-100 transition-opacity flex gap-0.5">
-        <button
-          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onEdit(task) }}
-          className="h-6 w-6 flex items-center justify-center rounded bg-background/90 backdrop-blur-sm border border-border/50 text-muted-foreground hover:text-foreground hover:border-border transition-colors shadow-sm"
-        >
-          <Pencil className="h-3 w-3" />
-        </button>
-        <button
-          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete(task) }}
-          className="h-6 w-6 flex items-center justify-center rounded bg-background/90 backdrop-blur-sm border border-border/50 text-muted-foreground hover:text-destructive hover:border-destructive/50 transition-colors shadow-sm"
-        >
-          <Trash2 className="h-3 w-3" />
-        </button>
-      </div>
+    <div className="relative">
+      {phaseIndicators.length > 0 && (
+        <div className="absolute top-3 right-3 flex items-center gap-1 pointer-events-none">
+          {phaseIndicators.map(phase => {
+            const Icon = PHASE_ICONS[phase.type] ?? CircleDot
+            return (
+              <div
+                key={phase.type}
+                title={`${phase.name}: ${PHASE_LABEL[phase.status] ?? phase.status}`}
+                className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${PHASE_TYPE_STYLE[phase.type] ?? "bg-muted text-muted-foreground/60"}`}
+              >
+                <Icon className="h-2.5 w-2.5" />
+              </div>
+            )
+          })}
+        </div>
+      )}
       <Link href={`/tasks/${task.id}`}>
         <Card
           style={{
             borderTopWidth: "2px",
             borderTopStyle: "solid",
-            borderTopColor: isRejected ? "rgb(248 113 113)" : "rgb(203 213 225)",
+            borderTopColor: isRejected ? "rgb(248 113 113)" : (hasApproved || isConcluido) ? "rgb(52 211 153)" : "rgb(203 213 225)",
           }}
           className="group transition-shadow duration-150 cursor-pointer hover:[box-shadow:0_-2px_8px_0_rgb(0_0_0/0.08),0_4px_8px_0_rgb(0_0_0/0.08)]"
         >
           <CardHeader className="p-4 pb-2 pr-10">
-            {task.taskNumber && (
-              <span className="text-[10px] font-mono text-muted-foreground/70 mb-0.5">{task.taskNumber}</span>
-            )}
+            <div className="mb-0.5 min-h-[14px]">
+              <span className="text-[10px] font-mono text-muted-foreground/70">
+                {task.taskNumber ?? ""}
+              </span>
+            </div>
             <CardTitle className="text-sm font-bold">{task.name}</CardTitle>
             <CardDescription className="text-xs">{task.project}</CardDescription>
           </CardHeader>
@@ -306,6 +338,12 @@ function TaskCard({
                 <div className="flex items-center gap-1.5 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 rounded px-2 py-1 mb-1">
                   <CircleX className="h-3 w-3 shrink-0" />
                   <span className="text-[11px]">Reprovado: {rejectedPhases.join(", ")}</span>
+                </div>
+              )}
+              {hasApproved && (
+                <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 rounded px-2 py-1 mb-1">
+                  <CircleCheck className="h-3 w-3 shrink-0" />
+                  <span className="text-[11px]">Aprovado: {approvedPhases.join(", ")}</span>
                 </div>
               )}
               <p className="line-clamp-3 text-muted-foreground mb-2">{task.description}</p>
@@ -346,13 +384,9 @@ function sortTasks(tasks: Task[]): Task[] {
 function KanbanColumn({
   column,
   tasks,
-  onEdit,
-  onDelete,
 }: {
   column: KanbanColumnConfig
   tasks: Task[]
-  onEdit: (task: Task) => void
-  onDelete: (task: Task) => void
 }) {
   return (
     <div className={`flex flex-col gap-4 bg-muted/50 p-4 rounded-xl min-w-72 w-full border-t-2 ${column.accent}`}>
@@ -372,7 +406,7 @@ function KanbanColumn({
       <p className="text-[11px] text-muted-foreground/70 px-1 -mt-2">{column.description}</p>
       <div className="flex flex-col gap-3 min-h-50">
         {tasks.map((task) => (
-          <TaskCard key={task.id} task={task} onEdit={onEdit} onDelete={onDelete} />
+          <TaskCard key={task.id} task={task} />
         ))}
       </div>
     </div>
@@ -451,19 +485,42 @@ export default function Page() {
 
   const tasks = Array.isArray(tasksData) ? tasksData : []
 
+  const STORAGE_KEY = "tasks-page-prefs"
+
   const [search, setSearch] = useState("")
-  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(
-    () => new Set(KANBAN_COLUMNS.map(c => c.id))
-  )
+  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY)
+      if (stored) {
+        const parsed = JSON.parse(stored)
+        if (Array.isArray(parsed.visibleColumns)) return new Set<string>(parsed.visibleColumns)
+      }
+    } catch {}
+    return new Set(KANBAN_COLUMNS.map(c => c.id))
+  })
   const toggleColumn = (id: string) =>
     setVisibleColumns(prev => {
       const next = new Set(prev)
       next.has(id) ? next.delete(id) : next.add(id)
       return next
     })
-  const [filters, setFilters] = useState<{ priority: string[]; project: string[]; applicant: string[] }>({
-    priority: [], project: [], applicant: [],
+  const [filters, setFilters] = useState<{ priority: string[]; project: string[]; applicant: string[] }>(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY)
+      if (stored) {
+        const parsed = JSON.parse(stored)
+        if (parsed.filters) return parsed.filters
+      }
+    } catch {}
+    return { priority: [], project: [], applicant: [] }
   })
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      filters,
+      visibleColumns: [...visibleColumns],
+    }))
+  }, [filters, visibleColumns])
   const hasActiveFilters = search.trim().length > 0 || filters.priority.length > 0 || filters.project.length > 0 || filters.applicant.length > 0
   const clearFilters = () => { setFilters({ priority: [], project: [], applicant: [] }); setSearch("") }
 
@@ -472,7 +529,8 @@ export default function Page() {
       const q = search.trim().toLowerCase()
       const matchesName = task.name.toLowerCase().includes(q)
       const matchesNumber = task.taskNumber?.toLowerCase().includes(q)
-      if (!matchesName && !matchesNumber) return false
+      const matchesStatus = task.status.toLowerCase().includes(q)
+      if (!matchesName && !matchesNumber && !matchesStatus) return false
     }
     if (filters.priority.length > 0 && !filters.priority.some(p => task.priority.toLowerCase() === p.toLowerCase())) return false
     if (filters.project.length > 0 && !filters.project.some(p => task.project.toUpperCase() === p)) return false
@@ -1051,7 +1109,7 @@ export default function Page() {
                   <Columns3 className="h-3.5 w-3.5" />
                   Colunas
                   {visibleColumns.size < KANBAN_COLUMNS.length && (
-                    <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] px-1">
+                    <span suppressHydrationWarning className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] px-1">
                       {visibleColumns.size}
                     </span>
                   )}
@@ -1100,8 +1158,6 @@ export default function Page() {
                   tasks={sortTasks(filteredTasks.filter(
                     (t) => t.status.toLowerCase() === column.id.toLowerCase()
                   ))}
-                  onEdit={handleEditOpen}
-                  onDelete={setDeletingTask}
                 />
               ))}
             </div>
