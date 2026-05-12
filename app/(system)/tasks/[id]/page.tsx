@@ -7,7 +7,6 @@ import useSWR, { useSWRConfig } from "swr"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DiscoveryPhaseTab } from "./discovery-form"
 import { PhaseApproval } from "@/components/phase-approval"
 import { Calendar as CalendarPicker } from "@/components/ui/calendar"
@@ -539,11 +538,13 @@ function PhasesCard({
   enabledPhases,
   taskId,
   onUpdate,
+  onPhaseSelect,
 }: {
   allPhases: Phase[]
   enabledPhases: Phase[]
   taskId: string
   onUpdate: () => void
+  onPhaseSelect?: (phaseId: string) => void
 }) {
   const [isAdding, setIsAdding] = useState(false)
   const [selectedToolId, setSelectedToolId] = useState<number | null>(null)
@@ -667,7 +668,14 @@ function PhasesCard({
                   <td className="px-4 py-3 text-muted-foreground">{fmtDate(phase.dueDate)}</td>
                   <td className="px-4 py-3 text-muted-foreground">{fmtDate(phase.startedAt)}</td>
                   <td className="px-4 py-3 text-muted-foreground">{fmtDate(phase.completedAt)}</td>
-                  <td className="px-4 py-3" />
+                  <td className="px-4 py-3 text-right">
+                    {onPhaseSelect && (
+                      <Button size="sm" variant="ghost" className="h-7 px-2.5 text-xs gap-1.5" onClick={() => onPhaseSelect(phase.id)}>
+                        Abrir
+                        <ExternalLink className="h-3 w-3" />
+                      </Button>
+                    )}
+                  </td>
                 </tr>
               )})}
 
@@ -1448,6 +1456,7 @@ export default function TaskDetailPage() {
   const params = useParams()
   const id = params.id as string
   const [phases, setPhases] = useState<Phase[]>([])
+  const [selectedPhaseId, setSelectedPhaseId] = useState<string | null>(null)
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -1803,18 +1812,8 @@ export default function TaskDetailPage() {
           </AlertDialogContent>
         </AlertDialog>
 
-        {/* Tabs */}
-        <Tabs defaultValue="visao-geral" className="space-y-4">
-          <TabsList>
-            <TabsTrigger value="visao-geral">Visão Geral</TabsTrigger>
-            {enabledPhases.map(phase => (
-              <TabsTrigger key={phase.id} value={phase.id}>
-                {phase.name}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-
-          <TabsContent value="visao-geral" className="space-y-6">
+        {selectedPhaseId === null ? (
+          <div className="space-y-6">
             {/* Info cards row */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <Card>
@@ -1861,6 +1860,7 @@ export default function TaskDetailPage() {
               enabledPhases={enabledPhases}
               taskId={id}
               onUpdate={() => mutate()}
+              onPhaseSelect={setSelectedPhaseId}
             />
 
             {/* Flows */}
@@ -1884,11 +1884,22 @@ export default function TaskDetailPage() {
               <Calendar className="h-3 w-3" />
               Criada em {new Date(data.createdAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })}
             </p>
-          </TabsContent>
-
-          {/* Phase tabs */}
-          {enabledPhases.map(phase => (
-            <TabsContent key={phase.id} value={phase.id}>
+          </div>
+        ) : (() => {
+          const phase = enabledPhases.find(p => p.id === selectedPhaseId)
+          if (!phase) return null
+          return (
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <Button variant="ghost" size="sm" onClick={() => setSelectedPhaseId(null)} className="gap-1.5 -ml-1">
+                  <ArrowLeft className="h-4 w-4" />
+                  Voltar
+                </Button>
+                <div className="flex items-center gap-2">
+                  <PhaseIconBubble type={phase.type} />
+                  <span className="text-base font-semibold">{phase.name}</span>
+                </div>
+              </div>
               <Card>
                 <CardContent className="pt-6">
                   {(phase.type === "discovery" || phase.id.startsWith("discovery")) ? (
@@ -1950,10 +1961,9 @@ export default function TaskDetailPage() {
                   )}
                 </CardContent>
               </Card>
-            </TabsContent>
-          ))}
-
-        </Tabs>
+            </div>
+          )
+        })()}
       </div>
     </div>
   )
