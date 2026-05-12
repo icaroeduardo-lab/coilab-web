@@ -27,7 +27,7 @@ type Phase = {
   name: string
   order: number
   enabled: boolean
-  status: "not_started" | "in_progress" | "completed" | "approved" | "rejected"
+  status: "not_started" | "in_progress" | "completed" | "approved" | "rejected" | "cancelled"
   dueDate?: string
   startedAt?: string
   completedAt?: string
@@ -785,11 +785,15 @@ export function DiscoveryPhaseTab({
   taskId,
   onPhaseUpdate,
   discoveryMeta,
+  disabled = false,
+  onAfterSave,
 }: {
   phase: Phase
   taskId: string
   onPhaseUpdate: (phases: Phase[]) => void
   discoveryMeta?: DiscoveryMeta
+  disabled?: boolean
+  onAfterSave?: () => void
 }) {
   const { data: taskData, mutate } = useSWR<Task>(`/api/tasks/${taskId}`, fetcher)
   const [isStarting, setIsStarting] = useState(false)
@@ -818,15 +822,17 @@ export function DiscoveryPhaseTab({
           <p className="text-sm font-medium">Discovery</p>
           <p className="text-xs text-muted-foreground mt-0.5">Clique em Iniciar para começar o preenchimento</p>
         </div>
-        <Button onClick={handleStart} disabled={isStarting} className="gap-2 shrink-0">
-          {isStarting ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
-          Iniciar
-        </Button>
+        {!disabled && (
+          <Button onClick={handleStart} disabled={isStarting} className="gap-2 shrink-0">
+            {isStarting ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
+            Iniciar
+          </Button>
+        )}
       </div>
     )
   }
 
-  if ((phase.status === "approved" || phase.status === "rejected") && phase.discoveryData) {
+  if ((phase.status === "approved" || phase.status === "rejected" || phase.status === "cancelled") && phase.discoveryData) {
     return (
       <div className="space-y-6">
         <DiscoveryDisplay data={phase.discoveryData} />
@@ -842,7 +848,7 @@ export function DiscoveryPhaseTab({
     )
   }
 
-  const isLocked = ["completed", "approved", "rejected"].includes(phase.status)
+  const isLocked = disabled || ["completed", "approved", "rejected", "cancelled"].includes(phase.status)
 
   return (
     <DiscoveryForm
@@ -852,7 +858,7 @@ export function DiscoveryPhaseTab({
       discoveryMeta={discoveryMeta}
       taskData={taskData}
       readOnly={isLocked}
-      onSaved={() => { mutate(); onPhaseUpdate([]) }}
+      onSaved={() => { mutate(); onPhaseUpdate([]); onAfterSave?.() }}
     />
   )
 }

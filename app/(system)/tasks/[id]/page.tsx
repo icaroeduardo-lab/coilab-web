@@ -2,7 +2,7 @@
 
 import { useRouter, useParams, notFound } from "next/navigation"
 import React, { useState } from "react"
-import { ArrowLeft, AlertCircle, Loader2, User, Calendar, Plus, Trash2, Check, PlayCircle, CheckCircle2, RotateCcw, Clock, Save, Pencil, XCircle, ExternalLink, Search, Paintbrush, GitBranch, Code2, CircleDot } from "lucide-react"
+import { ArrowLeft, AlertCircle, Loader2, User, Calendar, Plus, Trash2, Check, PlayCircle, CheckCircle2, RotateCcw, Clock, Save, Pencil, XCircle, ExternalLink, Search, Paintbrush, GitBranch, Code2, CircleDot, Eye } from "lucide-react"
 import useSWR, { useSWRConfig } from "swr"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -45,7 +45,7 @@ type Phase = {
   name: string
   order: number
   enabled: boolean
-  status: "not_started" | "in_progress" | "completed" | "approved" | "rejected"
+  status: "not_started" | "in_progress" | "completed" | "approved" | "rejected" | "cancelled"
   dueDate?: string
   startedAt?: string
   completedAt?: string
@@ -163,6 +163,13 @@ function PhaseStatusBadge({ status }: { status: string }) {
     return (
       <Badge className="gap-1 bg-red-100 text-red-700 border border-red-200 dark:bg-red-950/30 dark:text-red-400 dark:border-red-800">
         Reprovada
+      </Badge>
+    )
+  }
+  if (status === "cancelled") {
+    return (
+      <Badge className="gap-1 bg-orange-100 text-orange-700 border border-orange-200 dark:bg-orange-950/30 dark:text-orange-400 dark:border-orange-800">
+        Cancelada
       </Badge>
     )
   }
@@ -343,10 +350,12 @@ function PhaseStatusHeader({
   phase,
   taskId,
   onPhaseUpdate,
+  disabled = false,
 }: {
   phase: Phase
   taskId: string
   onPhaseUpdate: (phases: Phase[]) => void
+  disabled?: boolean
 }) {
   const { isLoading, callPhaseAction } = usePhaseActions(phase, taskId, onPhaseUpdate)
   const [isCancelOpen, setIsCancelOpen] = useState(false)
@@ -357,35 +366,37 @@ function PhaseStatusHeader({
       <PhaseDateBar phase={phase} />
       <div className="flex items-center justify-between">
         <PhaseStatusBadge status={phase.status} />
-        <div className="flex gap-2">
-          {phase.status === "not_started" && (
-            <Button size="sm" disabled={isLoading} onClick={() => callPhaseAction("start")} className="gap-2">
-              <PlayCircle className="h-4 w-4" />
-              Iniciar Fase
-            </Button>
-          )}
-          {phase.status === "in_progress" && (
-            <>
-              <Button size="sm" variant="outline" disabled={isLoading} onClick={() => setIsCancelOpen(o => !o)} className="gap-2 text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive">
-                <XCircle className="h-3.5 w-3.5" />
-                Cancelar Fase
+        {!disabled && (
+          <div className="flex gap-2">
+            {phase.status === "not_started" && (
+              <Button size="sm" disabled={isLoading} onClick={() => callPhaseAction("start")} className="gap-2">
+                <PlayCircle className="h-4 w-4" />
+                Iniciar Fase
               </Button>
-              <Button size="sm" disabled={isLoading} onClick={() => callPhaseAction("complete")} className="gap-2">
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                Finalizar Fase
+            )}
+            {phase.status === "in_progress" && (
+              <>
+                <Button size="sm" variant="outline" disabled={isLoading} onClick={() => setIsCancelOpen(o => !o)} className="gap-2 text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive">
+                  <XCircle className="h-3.5 w-3.5" />
+                  Cancelar Fase
+                </Button>
+                <Button size="sm" disabled={isLoading} onClick={() => callPhaseAction("complete")} className="gap-2">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Finalizar Fase
+                </Button>
+              </>
+            )}
+            {phase.status === "completed" && (
+              <Button size="sm" variant="outline" disabled={isLoading} onClick={() => callPhaseAction("reopen")} className="gap-2">
+                <RotateCcw className="h-3.5 w-3.5" />
+                Reabrir Fase
               </Button>
-            </>
-          )}
-          {phase.status === "completed" && (
-            <Button size="sm" variant="outline" disabled={isLoading} onClick={() => callPhaseAction("reopen")} className="gap-2">
-              <RotateCcw className="h-3.5 w-3.5" />
-              Reabrir Fase
-            </Button>
-          )}
-          {(phase.status === "approved" || phase.status === "rejected") && (
-            <Badge variant="outline" className="text-xs text-muted-foreground">Fase encerrada</Badge>
-          )}
-        </div>
+            )}
+            {(phase.status === "approved" || phase.status === "rejected" || phase.status === "cancelled") && (
+              <Badge variant="outline" className="text-xs text-muted-foreground">Fase encerrada</Badge>
+            )}
+          </div>
+        )}
       </div>
       {phase.status === "not_started" && (
         <div className="flex items-center gap-3 p-3 rounded-lg border border-dashed text-sm text-muted-foreground">
@@ -419,7 +430,7 @@ function PhaseStatusHeader({
   )
 }
 
-function PhaseTab({ phase, taskId, onPhaseUpdate }: { phase: Phase; taskId: string; onPhaseUpdate: (phases: Phase[]) => void }) {
+function PhaseTab({ phase, taskId, onPhaseUpdate, disabled = false, onSaved }: { phase: Phase; taskId: string; onPhaseUpdate: (phases: Phase[]) => void; disabled?: boolean; onSaved?: () => void }) {
   const { mutate } = useSWR<Task>(`/api/tasks/${taskId}`, fetcher)
   const { isLoading, callPhaseAction } = usePhaseActions(phase, taskId, onPhaseUpdate)
   const [notes, setNotes] = useState(phase.notes || "")
@@ -437,6 +448,7 @@ function PhaseTab({ phase, taskId, onPhaseUpdate }: { phase: Phase; taskId: stri
         }),
       })
       mutate()
+      onSaved?.()
     } catch (error: any) {
       toast.error(error.message || "Erro ao salvar rascunho")
     }
@@ -461,7 +473,7 @@ function PhaseTab({ phase, taskId, onPhaseUpdate }: { phase: Phase; taskId: stri
 
   return (
     <div className="space-y-6">
-      <PhaseStatusHeader phase={phase} taskId={taskId} onPhaseUpdate={onPhaseUpdate} />
+      <PhaseStatusHeader phase={phase} taskId={taskId} onPhaseUpdate={onPhaseUpdate} disabled={disabled} />
 
       {phase.status !== "not_started" && (
         <>
@@ -472,7 +484,7 @@ function PhaseTab({ phase, taskId, onPhaseUpdate }: { phase: Phase; taskId: stri
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Escreva suas notas sobre esta fase..."
               className="w-full min-h-24 p-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-              disabled={phase.status === "completed"}
+              disabled={disabled || phase.status === "completed"}
             />
           </div>
 
@@ -484,14 +496,14 @@ function PhaseTab({ phase, taskId, onPhaseUpdate }: { phase: Phase; taskId: stri
                   <input
                     type="checkbox"
                     checked={item.completed}
-                    onChange={() => phase.status !== "completed" && toggleChecklistItem(item.id)}
-                    disabled={phase.status === "completed"}
+                    onChange={() => !disabled && phase.status !== "completed" && toggleChecklistItem(item.id)}
+                    disabled={disabled || phase.status === "completed"}
                     className="rounded"
                   />
                   <span className={item.completed ? "line-through text-muted-foreground flex-1" : "flex-1"}>
                     {item.label}
                   </span>
-                  {phase.status !== "completed" && (
+                  {!disabled && phase.status !== "completed" && (
                     <button onClick={() => removeChecklistItem(item.id)} className="text-destructive hover:text-destructive/80 p-1">
                       <Trash2 className="h-3 w-3" />
                     </button>
@@ -500,7 +512,7 @@ function PhaseTab({ phase, taskId, onPhaseUpdate }: { phase: Phase; taskId: stri
               ))}
             </div>
 
-            {phase.status !== "completed" && (
+            {!disabled && phase.status !== "completed" && (
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -517,7 +529,7 @@ function PhaseTab({ phase, taskId, onPhaseUpdate }: { phase: Phase; taskId: stri
             )}
           </div>
 
-          {phase.status !== "completed" && (
+          {!disabled && phase.status !== "completed" && (
             <div className="flex gap-2">
               <Button onClick={handleSaveRascunho} variant="outline" size="sm" disabled={isLoading} className="gap-2">
                 <Save className="h-3.5 w-3.5" />
@@ -539,12 +551,14 @@ function PhasesCard({
   taskId,
   onUpdate,
   onPhaseSelect,
+  disabled = false,
 }: {
   allPhases: Phase[]
   enabledPhases: Phase[]
   taskId: string
   onUpdate: () => void
   onPhaseSelect?: (phaseId: string) => void
+  disabled?: boolean
 }) {
   const [isAdding, setIsAdding] = useState(false)
   const [selectedToolId, setSelectedToolId] = useState<number | null>(null)
@@ -571,7 +585,7 @@ function PhasesCard({
   }
 
   const availableTools = tools.filter(
-    tool => !allPhases.find(ap => ap.type === tool.name.toLowerCase() && ap.status !== "rejected")
+    tool => !allPhases.find(ap => ap.type === tool.name.toLowerCase() && ap.status !== "rejected" && ap.status !== "cancelled")
   )
 
   const handleAdd = async () => {
@@ -625,7 +639,7 @@ function PhasesCard({
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="text-sm font-medium text-muted-foreground">Fases</CardTitle>
-          {availableTools.length > 0 && !isAdding && (
+          {!disabled && availableTools.length > 0 && !isAdding && (
             <Button size="sm" variant="outline" className="gap-1.5 h-7 px-2.5 text-xs" onClick={() => setIsAdding(true)}>
               <Plus className="h-3.5 w-3.5" />
               Adicionar Fase
@@ -670,10 +684,12 @@ function PhasesCard({
                   <td className="px-4 py-3 text-muted-foreground">{fmtDate(phase.completedAt)}</td>
                   <td className="px-4 py-3 text-right">
                     {onPhaseSelect && (
-                      <Button size="sm" variant="ghost" className="h-7 px-2.5 text-xs gap-1.5" onClick={() => onPhaseSelect(phase.id)}>
-                        Abrir
-                        <ExternalLink className="h-3 w-3" />
-                      </Button>
+                      <button
+                        onClick={() => onPhaseSelect(phase.id)}
+                        className="p-1.5 hover:bg-primary/10 rounded text-primary transition-colors"
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                      </button>
                     )}
                   </td>
                 </tr>
@@ -754,11 +770,13 @@ function DesignPhaseTab({
   taskId,
   taskNumber,
   onPhaseUpdate,
+  disabled = false,
 }: {
   phase: Phase
   taskId: string
   taskNumber?: string
   onPhaseUpdate: (phases: Phase[]) => void
+  disabled?: boolean
 }) {
   const { isLoading, callPhaseAction } = usePhaseActions(phase, taskId, onPhaseUpdate)
   const [isCancelOpen, setIsCancelOpen] = useState(false)
@@ -771,10 +789,12 @@ function DesignPhaseTab({
           <p className="text-sm font-medium">Design</p>
           <p className="text-xs text-muted-foreground mt-0.5">Clique em Iniciar para começar o design</p>
         </div>
-        <Button onClick={() => callPhaseAction("start")} disabled={isLoading} className="gap-2 shrink-0">
-          {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
-          Iniciar
-        </Button>
+        {!disabled && (
+          <Button onClick={() => callPhaseAction("start")} disabled={isLoading} className="gap-2 shrink-0">
+            {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
+            Iniciar
+          </Button>
+        )}
       </div>
     )
   }
@@ -799,27 +819,29 @@ function DesignPhaseTab({
             <span className="font-medium">{fmtDate(phase.completedAt)}</span>
           </div>
         </div>
-        <div className="flex gap-2">
-          {(phase.status === "approved" || phase.status === "rejected") ? (
-            <Badge variant="outline" className="text-xs text-muted-foreground">Fase encerrada</Badge>
-          ) : phase.status === "completed" ? (
-            <Button size="sm" variant="outline" disabled={isLoading} onClick={() => callPhaseAction("reopen")} className="gap-2">
-              <RotateCcw className="h-3.5 w-3.5" />
-              Reabrir Design
-            </Button>
-          ) : (
-            <>
-              <Button size="sm" variant="outline" disabled={isLoading} onClick={() => setIsCancelOpen(o => !o)} className="gap-2 text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive">
-                <XCircle className="h-3.5 w-3.5" />
-                Cancelar Design
+        {!disabled && (
+          <div className="flex gap-2">
+            {(phase.status === "approved" || phase.status === "rejected" || phase.status === "cancelled") ? (
+              <Badge variant="outline" className="text-xs text-muted-foreground">Fase encerrada</Badge>
+            ) : phase.status === "completed" ? (
+              <Button size="sm" variant="outline" disabled={isLoading} onClick={() => callPhaseAction("reopen")} className="gap-2">
+                <RotateCcw className="h-3.5 w-3.5" />
+                Reabrir Design
               </Button>
-              <Button size="sm" disabled={isLoading} onClick={() => callPhaseAction("complete")} className="gap-2">
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                Finalizar Design
-              </Button>
-            </>
-          )}
-        </div>
+            ) : (
+              <>
+                <Button size="sm" variant="outline" disabled={isLoading} onClick={() => setIsCancelOpen(o => !o)} className="gap-2 text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive">
+                  <XCircle className="h-3.5 w-3.5" />
+                  Cancelar Design
+                </Button>
+                <Button size="sm" disabled={isLoading} onClick={() => callPhaseAction("complete")} className="gap-2">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Finalizar Design
+                </Button>
+              </>
+            )}
+          </div>
+        )}
       </div>
       {isCancelOpen && (
         <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
@@ -849,7 +871,7 @@ function DesignPhaseTab({
         subTaskId={phase.id}
         taskNumber={taskNumber}
         initialDesigns={phase.designs ?? []}
-        readOnly={["completed", "approved", "rejected"].includes(phase.status)}
+        readOnly={["completed", "approved", "rejected", "cancelled"].includes(phase.status)}
       />
     </div>
   )
@@ -887,10 +909,12 @@ function DevelopmentPhaseTab({
   phase,
   taskId,
   onPhaseUpdate,
+  disabled = false,
 }: {
   phase: Phase
   taskId: string
   onPhaseUpdate: (phases: Phase[]) => void
+  disabled?: boolean
 }) {
   const { isLoading, callPhaseAction } = usePhaseActions(phase, taskId, onPhaseUpdate)
   const [isCancelOpen, setIsCancelOpen] = useState(false)
@@ -1053,7 +1077,7 @@ function DevelopmentPhaseTab({
     }
   }
 
-  const isReadOnly = ["completed", "approved", "rejected"].includes(phase.status)
+  const isReadOnly = disabled || ["completed", "approved", "rejected", "cancelled"].includes(phase.status)
 
   if (phase.status === "not_started") {
     return (
@@ -1062,10 +1086,12 @@ function DevelopmentPhaseTab({
           <p className="text-sm font-medium">Desenvolvimento</p>
           <p className="text-xs text-muted-foreground mt-0.5">Clique em Iniciar para começar o desenvolvimento</p>
         </div>
-        <Button onClick={() => callPhaseAction("start")} disabled={isLoading} className="gap-2 shrink-0">
-          {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
-          Iniciar
-        </Button>
+        {!disabled && (
+          <Button onClick={() => callPhaseAction("start")} disabled={isLoading} className="gap-2 shrink-0">
+            {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
+            Iniciar
+          </Button>
+        )}
       </div>
     )
   }
@@ -1091,27 +1117,29 @@ function DevelopmentPhaseTab({
             <span className="font-medium">{fmtDate(phase.completedAt)}</span>
           </div>
         </div>
-        <div className="flex gap-2">
-          {(phase.status === "approved" || phase.status === "rejected") ? (
-            <Badge variant="outline" className="text-xs text-muted-foreground">Fase encerrada</Badge>
-          ) : phase.status === "completed" ? (
-            <Button size="sm" variant="outline" disabled={isLoading} onClick={() => callPhaseAction("reopen")} className="gap-2">
-              <RotateCcw className="h-3.5 w-3.5" />
-              Reabrir Desenvolvimento
-            </Button>
-          ) : (
-            <>
-              <Button size="sm" variant="outline" disabled={isLoading} onClick={() => setIsCancelOpen(o => !o)} className="gap-2 text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive">
-                <XCircle className="h-3.5 w-3.5" />
-                Cancelar
+        {!disabled && (
+          <div className="flex gap-2">
+            {(phase.status === "approved" || phase.status === "rejected" || phase.status === "cancelled") ? (
+              <Badge variant="outline" className="text-xs text-muted-foreground">Fase encerrada</Badge>
+            ) : phase.status === "completed" ? (
+              <Button size="sm" variant="outline" disabled={isLoading} onClick={() => callPhaseAction("reopen")} className="gap-2">
+                <RotateCcw className="h-3.5 w-3.5" />
+                Reabrir Desenvolvimento
               </Button>
-              <Button size="sm" disabled={isLoading} onClick={() => callPhaseAction("complete")} className="gap-2">
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                Finalizar Desenvolvimento
-              </Button>
-            </>
-          )}
-        </div>
+            ) : (
+              <>
+                <Button size="sm" variant="outline" disabled={isLoading} onClick={() => setIsCancelOpen(o => !o)} className="gap-2 text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive">
+                  <XCircle className="h-3.5 w-3.5" />
+                  Cancelar
+                </Button>
+                <Button size="sm" disabled={isLoading} onClick={() => callPhaseAction("complete")} className="gap-2">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Finalizar Desenvolvimento
+                </Button>
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       {isCancelOpen && (
@@ -1457,6 +1485,7 @@ export default function TaskDetailPage() {
   const id = params.id as string
   const [phases, setPhases] = useState<Phase[]>([])
   const [selectedPhaseId, setSelectedPhaseId] = useState<string | null>(null)
+  const [isConcluding, setIsConcluding] = useState(false)
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -1556,6 +1585,27 @@ export default function TaskDetailPage() {
     }
   }
 
+  const handleConcluir = async () => {
+    setIsConcluding(true)
+    try {
+      const res = await fetch(`/api/tasks/${id}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "Concluído" }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        toast.error(body.error || "Erro ao concluir tarefa")
+        return
+      }
+      mutate()
+    } catch {
+      toast.error("Erro ao concluir tarefa")
+    } finally {
+      setIsConcluding(false)
+    }
+  }
+
   const enabledPhases = (data?.phases || []).filter(p => p.enabled).sort((a, b) => a.order - b.order)
 
   if (isLoading) {
@@ -1618,12 +1668,25 @@ export default function TaskDetailPage() {
               <div className="h-0.5 w-12 bg-primary rounded-full mt-2" />
             </div>
             <div className="flex items-center gap-1 mt-1 shrink-0">
+              {data.status !== "Concluído" && (
+                <Button
+                  size="sm"
+                  className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+                  onClick={handleConcluir}
+                  disabled={isConcluding}
+                  title="Concluir tarefa"
+                >
+                  {isConcluding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                  Concluir
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8 text-muted-foreground hover:text-foreground"
                 onClick={openEdit}
                 title="Editar tarefa"
+                disabled={data.status === "Concluído"}
               >
                 <Pencil className="h-3.5 w-3.5" />
               </Button>
@@ -1633,6 +1696,7 @@ export default function TaskDetailPage() {
                 className="h-8 w-8 text-muted-foreground hover:text-destructive"
                 onClick={() => setIsDeleteOpen(true)}
                 title="Excluir tarefa"
+                disabled={data.status === "Concluído"}
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </Button>
@@ -1861,6 +1925,7 @@ export default function TaskDetailPage() {
               taskId={id}
               onUpdate={() => mutate()}
               onPhaseSelect={setSelectedPhaseId}
+              disabled={data.status === "Concluído"}
             />
 
             {/* Flows */}
@@ -1904,7 +1969,7 @@ export default function TaskDetailPage() {
                 <CardContent className="pt-6">
                   {(phase.type === "discovery" || phase.id.startsWith("discovery")) ? (
                     <div className="space-y-6">
-                      {(phase.status === "completed" || phase.status === "approved" || phase.status === "rejected") && (
+                      {data.status !== "Concluído" && (phase.status === "completed" || phase.status === "approved" || phase.status === "rejected" || phase.status === "cancelled") && (
                         <PhaseApproval
                           taskId={id}
                           phaseId={phase.id}
@@ -1917,11 +1982,13 @@ export default function TaskDetailPage() {
                         taskId={id}
                         onPhaseUpdate={setPhases}
                         discoveryMeta={phase.discoveryMeta}
+                        disabled={data.status === "Concluído"}
+                        onAfterSave={() => setSelectedPhaseId(null)}
                       />
                     </div>
                   ) : (phase.type === "design" || phase.id.startsWith("design")) ? (
                     <div className="space-y-6">
-                      {(phase.status === "completed" || phase.status === "approved" || phase.status === "rejected") && (
+                      {data.status !== "Concluído" && (phase.status === "completed" || phase.status === "approved" || phase.status === "rejected" || phase.status === "cancelled") && (
                         <PhaseApproval
                           taskId={id}
                           phaseId={phase.id}
@@ -1934,11 +2001,12 @@ export default function TaskDetailPage() {
                         taskId={id}
                         taskNumber={data.taskNumber}
                         onPhaseUpdate={setPhases}
+                        disabled={data.status === "Concluído"}
                       />
                     </div>
                   ) : (phase.type === "desenvolvimento" || phase.id.startsWith("desenvolvimento")) ? (
                     <div className="space-y-6">
-                      {(phase.status === "completed" || phase.status === "approved" || phase.status === "rejected") && (
+                      {data.status !== "Concluído" && (phase.status === "completed" || phase.status === "approved" || phase.status === "rejected" || phase.status === "cancelled") && (
                         <PhaseApproval
                           taskId={id}
                           phaseId={phase.id}
@@ -1950,6 +2018,7 @@ export default function TaskDetailPage() {
                         phase={phase}
                         taskId={id}
                         onPhaseUpdate={setPhases}
+                        disabled={data.status === "Concluído"}
                       />
                     </div>
                   ) : (
@@ -1957,6 +2026,8 @@ export default function TaskDetailPage() {
                       phase={phase}
                       taskId={id}
                       onPhaseUpdate={setPhases}
+                      disabled={data.status === "Concluído"}
+                      onSaved={() => setSelectedPhaseId(null)}
                     />
                   )}
                 </CardContent>

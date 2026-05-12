@@ -51,7 +51,7 @@ export function GlobalSearch() {
   const results: Result[] = q
     ? [
         ...tasks
-          .filter(t => t.name.toLowerCase().includes(q) || t.taskNumber?.toLowerCase().includes(q))
+          .filter(t => t.name.toLowerCase().includes(q) || t.taskNumber?.toLowerCase().includes(q) || t.status?.toLowerCase().includes(q))
           .slice(0, 5)
           .map(t => ({ kind: "task" as const, id: t.id, number: t.taskNumber, title: t.name, sub: t.project, status: t.status, phases: t.phases })),
         ...projects
@@ -136,6 +136,20 @@ export function GlobalSearch() {
                   )}
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
+                  {r.kind === "task" && r.status && (
+                    <Badge
+                      variant="secondary"
+                      className={`text-[10px] h-5 px-1.5 border ${
+                        r.status === "Concluído"
+                          ? "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800"
+                          : r.status === "Em Execução"
+                          ? "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800"
+                          : "bg-muted text-muted-foreground border-border"
+                      }`}
+                    >
+                      {r.status}
+                    </Badge>
+                  )}
                   <Badge
                     variant="secondary"
                     className={`text-[10px] h-5 px-1.5 border ${
