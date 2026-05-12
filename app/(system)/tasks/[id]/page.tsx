@@ -1,8 +1,8 @@
 "use client"
 
 import { useRouter, useParams, notFound } from "next/navigation"
-import { useState } from "react"
-import { ArrowLeft, AlertCircle, Loader2, User, Calendar, Plus, Trash2, Check, PlayCircle, CheckCircle2, RotateCcw, Clock, Save, Pencil, XCircle, ExternalLink } from "lucide-react"
+import React, { useState } from "react"
+import { ArrowLeft, AlertCircle, Loader2, User, Calendar, Plus, Trash2, Check, PlayCircle, CheckCircle2, RotateCcw, Clock, Save, Pencil, XCircle, ExternalLink, Search, Paintbrush, GitBranch, Code2, CircleDot } from "lucide-react"
 import useSWR, { useSWRConfig } from "swr"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -71,6 +71,31 @@ type Task = {
   design?: Design[]
   phases?: Phase[]
   flows?: { id: string; name: string }[]
+}
+
+const PHASE_ICONS: Record<string, React.ElementType> = {
+  discovery: Search,
+  design: Paintbrush,
+  diagram: GitBranch,
+  desenvolvimento: Code2,
+}
+const PHASE_TYPE_STYLE: Record<string, string> = {
+  discovery:    "bg-violet-100 text-violet-600 dark:bg-violet-950/40 dark:text-violet-400",
+  design:       "bg-pink-100 text-pink-600 dark:bg-pink-950/40 dark:text-pink-400",
+  diagram:      "bg-cyan-100 text-cyan-600 dark:bg-cyan-950/40 dark:text-cyan-400",
+  desenvolvimento: "bg-orange-100 text-orange-600 dark:bg-orange-950/40 dark:text-orange-400",
+}
+
+function PhaseIconBubble({ type, size = "md" }: { type?: string; size?: "sm" | "md" }) {
+  const Icon = (type && PHASE_ICONS[type]) ? PHASE_ICONS[type] : CircleDot
+  const styleClass = (type && PHASE_TYPE_STYLE[type]) ? PHASE_TYPE_STYLE[type] : "bg-muted text-muted-foreground/60"
+  const sizeClass = size === "sm" ? "w-4 h-4" : "w-5 h-5"
+  const iconClass = size === "sm" ? "h-2 w-2" : "h-2.5 w-2.5"
+  return (
+    <div className={`${sizeClass} rounded-full flex items-center justify-center shrink-0 ${styleClass}`}>
+      <Icon className={iconClass} />
+    </div>
+  )
 }
 
 function PriorityBadge({ priority }: { priority?: string }) {
@@ -634,12 +659,7 @@ function PhasesCard({
                 <tr key={phase.id} className="hover:bg-muted/30 transition-colors">
                   <td className="px-6 py-3">
                     <div className="flex items-center gap-2.5">
-                      <div className={`h-2 w-2 rounded-full shrink-0 ${
-                        status === "approved" ? "bg-emerald-500" :
-                        status === "rejected" ? "bg-red-500" :
-                        status === "completed" ? "bg-sky-500" :
-                        status === "in_progress" ? "bg-amber-500" : "bg-muted-foreground/30"
-                      }`} />
+                      <PhaseIconBubble type={phase.type} />
                       <span className="font-medium">{phase.name}</span>
                     </div>
                   </td>
@@ -1715,12 +1735,9 @@ export default function TaskDetailPage() {
                         return (
                           <div key={phase.id} className={`flex items-center justify-between px-3 py-2.5 transition-colors ${markedForDelete ? "bg-destructive/5" : "bg-background hover:bg-muted/40"}`}>
                             <div className="flex items-center gap-2.5">
-                              <div className={`h-1.5 w-1.5 rounded-full shrink-0 ${markedForDelete ? "bg-destructive/40" :
-                                phase.status === "approved" ? "bg-emerald-500" :
-                                phase.status === "rejected" ? "bg-red-500" :
-                                phase.status === "completed" ? "bg-sky-500" :
-                                phase.status === "in_progress" ? "bg-amber-500" : "bg-muted-foreground/30"
-                              }`} />
+                              <div className={markedForDelete ? "opacity-30" : ""}>
+                                <PhaseIconBubble type={phase.type} size="sm" />
+                              </div>
                               <span className={`text-sm ${markedForDelete ? "line-through text-muted-foreground/50" : ""}`}>
                                 {phase.name}
                               </span>
