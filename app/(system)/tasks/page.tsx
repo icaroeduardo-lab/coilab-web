@@ -392,8 +392,8 @@ function KanbanColumn({
   tasks: Task[]
 }) {
   return (
-    <div className={`flex flex-col gap-4 bg-muted/50 p-4 rounded-xl min-w-72 w-full border-t-2 h-full ${column.accent}`}>
-      <div className="flex items-center justify-between px-1 shrink-0">
+    <div className={`flex flex-col gap-4 bg-muted/50 p-4 rounded-xl min-w-72 w-full border-t-2 ${column.accent}`}>
+      <div className="flex items-center justify-between px-1">
         <div className="flex items-center gap-2">
           <h3 className="font-semibold text-sm">{column.name}</h3>
           {column.externalTeam && (
@@ -406,8 +406,8 @@ function KanbanColumn({
           {tasks.length}
         </span>
       </div>
-      <p className="text-[11px] text-muted-foreground/70 px-1 -mt-2 shrink-0">{column.description}</p>
-      <div className="flex flex-col gap-3 overflow-y-auto flex-1 pr-0.5">
+      <p className="text-[11px] text-muted-foreground/70 px-1 -mt-2">{column.description}</p>
+      <div className="flex flex-col gap-3 min-h-12">
         {tasks.map((task) => (
           <TaskCard key={task.id} task={task} />
         ))}
@@ -1177,12 +1177,12 @@ export default function Page() {
           </div>
         </div>
         )}
-        <TabsContent value="kanban" className="pt-4 flex-1 min-h-0 overflow-hidden">
-          <div className="h-full flex gap-4 overflow-x-auto pb-4">
-            <div className="flex gap-4 min-w-full h-full">
+        <TabsContent value="kanban" className="pt-4 flex-1 min-h-0 overflow-auto">
+          <div className="flex gap-4 overflow-x-auto pb-4">
+            <div className="flex gap-4 min-w-full">
               {isPageLoading ? (
                 KANBAN_COLUMNS.filter(c => visibleColumns.has(c.id)).map((column) => (
-                  <div key={column.id} className={`flex flex-col gap-3 bg-muted/50 p-4 rounded-xl min-w-72 w-full border-t-2 h-full ${column.accent}`}>
+                  <div key={column.id} className={`flex flex-col gap-3 bg-muted/50 p-4 rounded-xl min-w-72 w-full border-t-2 ${column.accent}`}>
                     <div className="flex items-center justify-between">
                       <Skeleton className="h-4 w-24" />
                       <Skeleton className="h-4 w-6 rounded-full" />
