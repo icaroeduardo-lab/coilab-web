@@ -209,16 +209,17 @@ export default function Page() {
   }
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="flex flex-col gap-6 p-6 h-screen overflow-hidden">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Projetos</h1>
+        {loading ? <Skeleton className="h-10 w-24 rounded-lg" /> : null}
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-          <DialogTrigger asChild>
+          {!loading && <DialogTrigger asChild>
             <Button size="lg" className="px-4">
               <Plus />
               Novo
             </Button>
-          </DialogTrigger>
+          </DialogTrigger>}
           <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Novo Projeto</DialogTitle>
@@ -324,22 +325,25 @@ export default function Page() {
         </Dialog>
       </div>
 
-      <div className="flex-1">
+      <div className="flex-1 min-h-0 overflow-auto w-full">
         {loading ? (
-          <div className="space-y-1">
-            <div className="flex items-center gap-4 px-4 py-2 border-b">
-              {[6, 32, 48, 16, 12, 12].map((w, i) => (
-                <Skeleton key={i} className={`h-3 w-${w}`} />
-              ))}
+          <div className="rounded-xl border overflow-hidden">
+            <div className="flex items-center gap-4 px-4 py-3 bg-muted/40 border-b">
+              <Skeleton className="h-3 w-8 shrink-0" />
+              <Skeleton className="h-3 flex-[2]" />
+              <Skeleton className="h-3 flex-[3]" />
+              <Skeleton className="h-3 flex-1" />
+              <Skeleton className="h-3 flex-1" />
+              <Skeleton className="h-3 w-16 shrink-0" />
             </div>
-            {Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="flex items-center gap-4 px-4 py-3">
-                <Skeleton className="h-3 w-6" />
-                <Skeleton className="h-3 w-32" />
-                <Skeleton className="h-3 w-48" />
-                <Skeleton className="h-3 w-16" />
-                <Skeleton className="h-5 w-14 rounded-full" />
-                <Skeleton className="h-3 w-12" />
+            {Array.from({ length: 10 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-4 px-4 py-3 border-b last:border-0">
+                <Skeleton className="h-3 w-8 shrink-0" />
+                <Skeleton className="h-3 flex-[2]" />
+                <Skeleton className="h-3 flex-[3]" />
+                <Skeleton className="h-3 flex-1" />
+                <Skeleton className="h-5 flex-1 rounded-full" />
+                <Skeleton className="h-3 w-16 shrink-0" />
               </div>
             ))}
           </div>
