@@ -369,6 +369,7 @@ function TaskCard({
               <p className="line-clamp-3 text-muted-foreground mb-2">{task.description}</p>
               <div className="flex flex-wrap gap-1 mb-2">
                 <PriorityBadge priority={task.priority} />
+                <StatusBadge status={task.status} />
                 <Badge variant="outline" className="gap-1">
                   <User />
                   {task.applicant}
@@ -553,7 +554,8 @@ export default function Page() {
       const q = search.trim().toLowerCase()
       const matchesName = task.name.toLowerCase().includes(q)
       const matchesNumber = task.taskNumber?.toLowerCase().includes(q)
-      if (!matchesName && !matchesNumber) return false
+      const matchesStatus = task.status.toLowerCase().includes(q)
+      if (!matchesName && !matchesNumber && !matchesStatus) return false
     }
     if (filters.priority.length > 0 && !filters.priority.some(p => task.priority.toLowerCase() === p.toLowerCase())) return false
     if (filters.project.length > 0 && !filters.project.some(p => task.project.toUpperCase() === p)) return false
