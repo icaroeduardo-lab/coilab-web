@@ -280,12 +280,11 @@ function TaskCard({
     diagram: GitBranch,
     desenvolvimento: Code2,
   }
-  const PHASE_STATUS_STYLE: Record<string, string> = {
-    not_started: "bg-muted text-muted-foreground/60",
-    in_progress:  "bg-blue-100 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400",
-    completed:    "bg-amber-100 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400",
-    approved:     "bg-emerald-100 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400",
-    rejected:     "bg-red-100 text-red-600 dark:bg-red-950/40 dark:text-red-400",
+  const PHASE_TYPE_STYLE: Record<string, string> = {
+    discovery:    "bg-violet-100 text-violet-600 dark:bg-violet-950/40 dark:text-violet-400",
+    design:       "bg-pink-100 text-pink-600 dark:bg-pink-950/40 dark:text-pink-400",
+    diagram:      "bg-cyan-100 text-cyan-600 dark:bg-cyan-950/40 dark:text-cyan-400",
+    desenvolvimento: "bg-orange-100 text-orange-600 dark:bg-orange-950/40 dark:text-orange-400",
   }
   const PHASE_LABEL: Record<string, string> = {
     not_started: "Não iniciado",
@@ -341,7 +340,7 @@ function TaskCard({
                       <div
                         key={phase.type}
                         title={`${phase.name}: ${PHASE_LABEL[phase.status] ?? phase.status}`}
-                        className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${PHASE_STATUS_STYLE[phase.status] ?? PHASE_STATUS_STYLE.not_started}`}
+                        className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${PHASE_TYPE_STYLE[phase.type] ?? "bg-muted text-muted-foreground/60"}`}
                       >
                         <Icon className="h-2.5 w-2.5" />
                       </div>
