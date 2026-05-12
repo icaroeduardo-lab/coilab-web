@@ -1,4 +1,4 @@
-export type PhaseStatus = "not_started" | "in_progress" | "completed" | "approved" | "rejected"
+export type PhaseStatus = "not_started" | "in_progress" | "completed" | "approved" | "rejected" | "cancelled"
 
 const SUBTASK_STATUS_MAP: Record<string, PhaseStatus> = {
   "Não iniciado": "not_started",
@@ -6,7 +6,7 @@ const SUBTASK_STATUS_MAP: Record<string, PhaseStatus> = {
   "Aguardando Checkout": "completed",
   "Aprovado": "approved",
   "Reprovado": "rejected",
-  "Cancelado": "rejected",
+  "Cancelado": "cancelled",
 }
 
 const TYPE_ORDER: Record<string, number> = {

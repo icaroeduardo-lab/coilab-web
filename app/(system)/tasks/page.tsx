@@ -265,6 +265,7 @@ function TaskCard({ task }: { task: Task }) {
 
   const approvedPhases = (task.phases || []).filter(p => p.enabled && p.status === "approved").map(p => p.name)
   const hasApproved = approvedPhases.length > 0
+  const isConcluido = task.status === "Concluído"
 
   const PHASE_ICONS: Record<string, React.ElementType> = {
     discovery: Search,
@@ -284,6 +285,7 @@ function TaskCard({ task }: { task: Task }) {
     completed:   "Aguardando Checkout",
     approved:    "Aprovado",
     rejected:    "Reprovado",
+    cancelled:   "Cancelado",
   }
 
   // One bubble per phase type — show latest entry (last wins)
@@ -296,36 +298,36 @@ function TaskCard({ task }: { task: Task }) {
 
   return (
     <div className="relative">
+      {phaseIndicators.length > 0 && (
+        <div className="absolute top-3 right-3 flex items-center gap-1 pointer-events-none">
+          {phaseIndicators.map(phase => {
+            const Icon = PHASE_ICONS[phase.type] ?? CircleDot
+            return (
+              <div
+                key={phase.type}
+                title={`${phase.name}: ${PHASE_LABEL[phase.status] ?? phase.status}`}
+                className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${PHASE_TYPE_STYLE[phase.type] ?? "bg-muted text-muted-foreground/60"}`}
+              >
+                <Icon className="h-2.5 w-2.5" />
+              </div>
+            )
+          })}
+        </div>
+      )}
       <Link href={`/tasks/${task.id}`}>
         <Card
           style={{
             borderTopWidth: "2px",
             borderTopStyle: "solid",
-            borderTopColor: isRejected ? "rgb(248 113 113)" : hasApproved ? "rgb(52 211 153)" : "rgb(203 213 225)",
+            borderTopColor: isRejected ? "rgb(248 113 113)" : (hasApproved || isConcluido) ? "rgb(52 211 153)" : "rgb(203 213 225)",
           }}
           className="group transition-shadow duration-150 cursor-pointer hover:[box-shadow:0_-2px_8px_0_rgb(0_0_0/0.08),0_4px_8px_0_rgb(0_0_0/0.08)]"
         >
           <CardHeader className="p-4 pb-2 pr-10">
-            <div className="flex items-center justify-between mb-0.5 min-h-[14px]">
+            <div className="mb-0.5 min-h-[14px]">
               <span className="text-[10px] font-mono text-muted-foreground/70">
                 {task.taskNumber ?? ""}
               </span>
-              {phaseIndicators.length > 0 && (
-                <div className="flex items-center gap-1">
-                  {phaseIndicators.map(phase => {
-                    const Icon = PHASE_ICONS[phase.type] ?? CircleDot
-                    return (
-                      <div
-                        key={phase.type}
-                        title={`${phase.name}: ${PHASE_LABEL[phase.status] ?? phase.status}`}
-                        className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${PHASE_TYPE_STYLE[phase.type] ?? "bg-muted text-muted-foreground/60"}`}
-                      >
-                        <Icon className="h-2.5 w-2.5" />
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
             </div>
             <CardTitle className="text-sm font-bold">{task.name}</CardTitle>
             <CardDescription className="text-xs">{task.project}</CardDescription>
@@ -1107,7 +1109,7 @@ export default function Page() {
                   <Columns3 className="h-3.5 w-3.5" />
                   Colunas
                   {visibleColumns.size < KANBAN_COLUMNS.length && (
-                    <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] px-1">
+                    <span suppressHydrationWarning className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] px-1">
                       {visibleColumns.size}
                     </span>
                   )}

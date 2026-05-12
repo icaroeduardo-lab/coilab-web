@@ -64,11 +64,20 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   },
   callbacks: {
     async jwt({ token, account }) {
+      const isDev = process.env.NODE_ENV === "development"
+
       if (account) {
         token.accessToken = account.id_token ?? account.access_token
         token.refreshToken = account.refresh_token
         token.expiresAt = account.expires_at
         token.tokenEndpoint = account.token_endpoint
+
+        if (isDev) {
+          console.log("\n[AUTH] 🔐 New login")
+          console.log("[AUTH] access_token :", token.accessToken)
+          console.log("[AUTH] refresh_token:", token.refreshToken)
+          console.log("[AUTH] expires_at   :", token.expiresAt, "→", new Date((token.expiresAt as number) * 1000).toISOString())
+        }
 
         try {
           const apiUrl = process.env.API_URL ?? "http://localhost:3001/api"
@@ -79,6 +88,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             const user = await res.json()
             token.backendId = user.id
             token.backendImageUrl = user.imageUrl ?? null
+            if (isDev) console.log("[AUTH] backend user  :", user)
+          } else if (isDev) {
+            console.warn("[AUTH] /users/me failed:", res.status)
           }
         } catch {
           // backend unreachable — proceed without enrichment
@@ -94,9 +106,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       }
 
       // Token expired — refresh
+      if (isDev) console.log("[AUTH] 🔄 Refreshing token...")
       try {
-        return await refreshCognitoToken(token as Record<string, unknown>) as typeof token
-      } catch {
+        const refreshed = await refreshCognitoToken(token as Record<string, unknown>) as typeof token
+        if (isDev) console.log("[AUTH] Token refreshed. New expires_at:", new Date((refreshed.expiresAt as number) * 1000).toISOString())
+        return refreshed
+      } catch (e) {
+        if (isDev) console.error("[AUTH] Token refresh failed:", e)
         return { ...token, error: "RefreshAccessTokenError" }
       }
     },
