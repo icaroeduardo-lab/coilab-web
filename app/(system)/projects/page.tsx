@@ -1,10 +1,10 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
-import { Plus, CheckCircle2, AlertCircle, FileText, Upload, X } from "lucide-react"
+import { Plus, CheckCircle2, AlertCircle } from "lucide-react"
 import Link from "next/link"
 import { ColumnDef } from "@tanstack/react-table"
 
@@ -44,7 +44,6 @@ type Project = {
   projectNumber?: string
   name: string
   description?: string
-  documentPath?: string
   status: string
   createdAt: string
 }
@@ -103,24 +102,16 @@ const columns: ColumnDef<Project>[] = [
 
 export default function Page() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
-  const [feedback, setFeedback] = useState<{
-    type: "success" | "error"
-    message: string
-  } | null>(null)
+  const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null)
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const fetchProjects = useCallback(async () => {
     try {
       setLoading(true)
       const response = await fetch("/api/projects")
-      if (response.ok) {
-        const data = await response.json()
-        setProjects(data)
-      }
+      if (response.ok) setProjects(await response.json())
     } catch (error) {
       console.error("Erro ao buscar projetos:", error)
     } finally {
@@ -128,81 +119,30 @@ export default function Page() {
     }
   }, [])
 
-  useEffect(() => {
-    fetchProjects()
-  }, [fetchProjects])
+  useEffect(() => { fetchProjects() }, [fetchProjects])
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      name: "",
-      description: "",
-    },
+    defaultValues: { name: "", description: "" },
   })
-
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    if (!file.name.endsWith(".md")) {
-      setFeedback({ type: "error", message: "Apenas arquivos .md (Markdown) são aceitos." })
-      e.target.value = ""
-      return
-    }
-    setSelectedFile(file)
-  }
-
-  function clearFile() {
-    setSelectedFile(null)
-    if (fileInputRef.current) fileInputRef.current.value = ""
-  }
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsSubmitting(true)
     try {
-      // 1. Create project
-      const createRes = await fetch("/api/projects", {
+      const res = await fetch("/api/projects", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(values),
       })
-      if (!createRes.ok) throw new Error("Erro ao salvar o projeto")
-      const created = await createRes.json()
-
-      // 2. Upload document via presigned URL
-      if (selectedFile && created.id) {
-        const urlRes = await fetch(
-          `/api/projects/${created.id}/upload-url?filename=${encodeURIComponent(selectedFile.name)}`,
-        )
-        if (!urlRes.ok) throw new Error("Falha ao obter URL de upload")
-        const { uploadUrl, fileUrl } = await urlRes.json()
-
-        const putRes = await fetch(uploadUrl, {
-          method: "PUT",
-          body: selectedFile,
-          headers: { "Content-Type": "text/markdown" },
-        })
-        if (!putRes.ok) throw new Error("Falha no upload do documento")
-
-        // 3. Update project with document URL
-        await fetch(`/api/projects/${created.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ documentPath: fileUrl }),
-        })
-      }
+      if (!res.ok) throw new Error("Erro ao salvar o projeto")
 
       setIsCreateDialogOpen(false)
       form.reset()
-      setSelectedFile(null)
       setFeedback({ type: "success", message: "Projeto criado com sucesso" })
       fetchProjects()
     } catch (error: any) {
-      console.error("Erro no formulário:", error)
       setIsCreateDialogOpen(false)
-      setFeedback({
-        type: "error",
-        message: error.message || "Ocorreu um erro ao criar o projeto. Tente novamente.",
-      })
+      setFeedback({ type: "error", message: error.message || "Ocorreu um erro ao criar o projeto. Tente novamente." })
     } finally {
       setIsSubmitting(false)
     }
@@ -214,99 +154,54 @@ export default function Page() {
         <h1 className="text-3xl font-bold">Projetos</h1>
         {loading ? <Skeleton className="h-10 w-24 rounded-lg" /> : null}
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-          {!loading && <DialogTrigger asChild>
-            <Button size="lg" className="px-4">
-              <Plus />
-              Novo
-            </Button>
-          </DialogTrigger>}
-          <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
+          {!loading && (
+            <DialogTrigger asChild>
+              <Button size="lg" className="px-4">
+                <Plus />
+                Novo
+              </Button>
+            </DialogTrigger>
+          )}
+          <DialogContent className="sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>Novo Projeto</DialogTitle>
             </DialogHeader>
             <div className="py-4">
               <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-
-                  {/* Informações Básicas */}
-                  <div className="border-b pb-4">
-                    <h3 className="text-sm font-semibold mb-4 text-muted-foreground">Informações Básicas</h3>
-                    <FormField
-                      control={form.control}
-                      name="name"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Nome do Projeto *</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Digite o nome do projeto" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
-                  {/* Detalhes */}
-                  <div className="border-b pb-4">
-                    <h3 className="text-sm font-semibold mb-4 text-muted-foreground">Detalhes</h3>
-                    <FormField
-                      control={form.control}
-                      name="description"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Descrição *</FormLabel>
-                          <FormControl>
-                            <Textarea
-                              placeholder="Descreva o projeto em detalhes..."
-                              className="min-h-24 resize-none"
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
-                  {/* Documentação */}
-                  <div className="space-y-4">
-                    <h3 className="text-sm font-semibold text-muted-foreground">Documentação</h3>
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">
-                        Arquivo de Documentação <span className="text-xs text-muted-foreground">(opcional — apenas .md)</span>
-                      </label>
-                      {selectedFile ? (
-                        <div className="flex items-center gap-2 px-3 py-2 border rounded-md bg-muted/40">
-                          <FileText className="h-4 w-4 text-primary shrink-0" />
-                          <span className="text-sm truncate flex-1">{selectedFile.name}</span>
-                          <button type="button" onClick={clearFile} className="shrink-0 text-muted-foreground hover:text-destructive">
-                            <X className="h-4 w-4" />
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => fileInputRef.current?.click()}
-                          className="w-full flex items-center justify-center gap-2 px-3 py-2 border border-dashed rounded-md text-sm text-muted-foreground hover:border-primary hover:text-primary transition-colors"
-                        >
-                          <Upload className="h-4 w-4" />
-                          Selecionar arquivo .md
-                        </button>
-                      )}
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept=".md"
-                        onChange={handleFileChange}
-                        className="hidden"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Botões */}
-                  <div className="flex gap-3 pt-4 border-t">
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+                  <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Nome do Projeto *</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Digite o nome do projeto" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="description"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Descrição *</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder="Descreva o projeto em detalhes..."
+                            className="min-h-24 resize-none"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <div className="flex gap-3 pt-2">
                     <Button type="submit" className="flex-1" size="lg" disabled={isSubmitting}>
-                      {isSubmitting ? "Salvando..." : "Salvar Projeto"}
+                      {isSubmitting ? "Salvando..." : "Criar Projeto"}
                     </Button>
                     <Button
                       type="button"
@@ -334,16 +229,14 @@ export default function Page() {
               <Skeleton className="h-3 flex-[3]" />
               <Skeleton className="h-3 flex-1" />
               <Skeleton className="h-3 flex-1" />
-              <Skeleton className="h-3 w-16 shrink-0" />
             </div>
             {Array.from({ length: 10 }).map((_, i) => (
               <div key={i} className="flex items-center gap-4 px-4 py-3 border-b last:border-0">
                 <Skeleton className="h-3 w-8 shrink-0" />
                 <Skeleton className="h-3 flex-[2]" />
                 <Skeleton className="h-3 flex-[3]" />
-                <Skeleton className="h-3 flex-1" />
                 <Skeleton className="h-5 flex-1 rounded-full" />
-                <Skeleton className="h-3 w-16 shrink-0" />
+                <Skeleton className="h-3 flex-1" />
               </div>
             ))}
           </div>
@@ -355,9 +248,7 @@ export default function Page() {
       <Dialog open={!!feedback} onOpenChange={(open) => !open && setFeedback(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader className="sr-only">
-            <DialogTitle>
-              {feedback?.type === "success" ? "Sucesso" : "Erro"}
-            </DialogTitle>
+            <DialogTitle>{feedback?.type === "success" ? "Sucesso" : "Erro"}</DialogTitle>
           </DialogHeader>
           <div className="flex flex-col items-center justify-center space-y-4 py-6 text-center">
             {feedback?.type === "success" ? (
@@ -371,12 +262,7 @@ export default function Page() {
               </h2>
               <p className="text-muted-foreground">{feedback?.message}</p>
             </div>
-            <Button
-              type="button"
-              variant="secondary"
-              className="mt-4"
-              onClick={() => setFeedback(null)}
-            >
+            <Button type="button" variant="secondary" onClick={() => setFeedback(null)}>
               Fechar
             </Button>
           </div>
