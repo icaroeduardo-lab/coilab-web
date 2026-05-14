@@ -26,7 +26,7 @@ export function CanvasCard({ id, title, icon, span = 1, headerRight, children, c
     <section
       aria-labelledby={titleId}
       className={cn(
-        "bg-white border border-slate-200 rounded-[10px] shadow-sm flex flex-col overflow-hidden",
+        "bg-white border border-slate-200 rounded-[10px] shadow-sm flex flex-col",
         spanClass[span],
         className
       )}

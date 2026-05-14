@@ -1,8 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { ArrowLeft } from "lucide-react"
 import { ProjectCanvas } from "@/components/canvas/ProjectCanvas"
-import { Canvas, CanvasTheme } from "@/components/canvas/types"
+import { useCanvasEditor } from "@/components/canvas/useCanvasEditor"
+import { Canvas } from "@/components/canvas/types"
 import { Button } from "@/components/ui/button"
 
 const MOCK_CANVAS: Canvas = {
@@ -94,10 +96,10 @@ const MOCK_CANVAS: Canvas = {
   ],
 
   team: [
-    { avatar: "IA", name: "Ícaro Albar", role: "Product Owner & Dev Lead", isLead: true },
-    { avatar: "MS", name: "Mariana Silva", role: "UX / UI Designer", isLead: false },
-    { avatar: "RC", name: "Rafael Costa", role: "Full-stack Developer", isLead: false },
-    { avatar: "LF", name: "Lara Fonseca", role: "QA & Automação", isLead: false },
+    { avatar: "IA", name: "Ícaro Albar" },
+    { avatar: "MS", name: "Mariana Silva" },
+    { avatar: "RC", name: "Rafael Costa" },
+    { avatar: "LF", name: "Lara Fonseca" },
   ],
 
   notes:
@@ -105,36 +107,23 @@ const MOCK_CANVAS: Canvas = {
 }
 
 export default function CanvasDemoPage() {
-  const [theme, setTheme] = useState<CanvasTheme>("blue")
+  const router = useRouter()
+  const { canvas, update } = useCanvasEditor("demo", MOCK_CANVAS)
 
   return (
     <div className="min-h-screen bg-slate-50">
       <div className="flex items-center justify-between px-6 py-4 bg-white border-b border-slate-200">
         <div>
           <h1 className="text-sm font-semibold text-slate-900">Canvas Demo</h1>
-          <p className="text-xs text-slate-500">Rota de visualização — /canvas/demo</p>
+          <p className="text-xs text-slate-500">Exemplo de canvas preenchido</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant={theme === "blue" ? "default" : "outline"}
-            onClick={() => setTheme("blue")}
-            className="text-xs h-7"
-          >
-            Azul
-          </Button>
-          <Button
-            size="sm"
-            variant={theme === "green" ? "default" : "outline"}
-            onClick={() => setTheme("green")}
-            className="text-xs h-7"
-          >
-            Verde
-          </Button>
-        </div>
+        <Button size="sm" variant="outline" onClick={() => router.back()} className="gap-1.5 text-xs h-7">
+          <ArrowLeft className="h-3 w-3" />
+          Voltar
+        </Button>
       </div>
       <div className="p-6">
-        <ProjectCanvas projectId="demo" initialCanvas={MOCK_CANVAS} theme={theme} />
+        <ProjectCanvas canvas={canvas} onUpdate={update} />
       </div>
     </div>
   )

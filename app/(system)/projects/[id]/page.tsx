@@ -1,11 +1,12 @@
 "use client"
 
+import { useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import useSWR from "swr"
 import Link from "next/link"
 import {
   ArrowLeft, Calendar, Hash, AlertCircle,
-  Loader2, ClipboardList, Eye, LayoutTemplate,
+  Loader2, ClipboardList, Eye, LayoutTemplate, Maximize2, Minimize2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -13,6 +14,8 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ProjectCanvas } from "@/components/canvas/ProjectCanvas"
+import { CanvasSkeleton } from "@/components/canvas/CanvasSkeleton"
+import { useCanvasEditor } from "@/components/canvas/useCanvasEditor"
 import type { Canvas } from "@/components/canvas/types"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
@@ -59,12 +62,165 @@ function StatusBadge({ status }: { status: string }) {
   return <Badge variant="outline">{status}</Badge>
 }
 
+function ProjectDetailContent({ project, projectLoading, tasks, tasksLoading }: {
+  project: Project
+  projectLoading: boolean
+  tasks: Task[]
+  tasksLoading: boolean
+}) {
+  const router = useRouter()
+  const [canvasExpanded, setCanvasExpanded] = useState(false)
+  const { canvas, update, saving } = useCanvasEditor(project.id, project.canvas)
+
+  return (
+    <div className="flex flex-col h-screen overflow-hidden">
+      {/* Header */}
+      <div className="px-8 pt-8 pb-6 space-y-4 border-b bg-background">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => router.back()}
+          className="gap-1.5 text-muted-foreground hover:text-foreground -ml-2"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Voltar
+        </Button>
+
+        <div className="flex items-start justify-between gap-4">
+          <div className="space-y-1 min-w-0 flex-1">
+            {project.projectNumber && (
+              <div className="flex items-center gap-1.5 text-xs font-mono text-muted-foreground">
+                <Hash className="h-3 w-3" />
+                {project.projectNumber}
+              </div>
+            )}
+            <h1 className="text-3xl font-bold tracking-tight uppercase">{project.name}</h1>
+            <div className="h-0.5 w-12 bg-primary rounded-full mt-2" />
+          </div>
+          <Badge variant="secondary" className="shrink-0 mt-1">{project.status}</Badge>
+        </div>
+
+        <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+          <Calendar className="h-3.5 w-3.5" />
+          Criado em {new Date(project.createdAt).toLocaleDateString("pt-BR", {
+            day: "2-digit", month: "long", year: "numeric",
+          })}
+        </div>
+
+        {project.description && (
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            {project.description}
+          </p>
+        )}
+      </div>
+
+      {/* Tabs */}
+      <Tabs defaultValue="canvas" className="flex-1 flex flex-col min-h-0">
+        <div className="px-8 pt-4 bg-background flex items-center justify-between">
+          <TabsList className="bg-muted/40 border border-border/50 p-0.5 h-9">
+            <TabsTrigger value="canvas" className="gap-2 px-4">
+              <LayoutTemplate className="h-3.5 w-3.5" />
+              Canvas
+            </TabsTrigger>
+            <TabsTrigger value="tarefas" className="gap-2 px-4">
+              <ClipboardList className="h-3.5 w-3.5" />
+              Tarefas
+              {tasks.length > 0 && (
+                <span className="ml-1 text-[10px] font-mono bg-muted px-1.5 py-0.5 rounded-full">
+                  {tasks.length}
+                </span>
+              )}
+            </TabsTrigger>
+          </TabsList>
+          <div className="flex items-center gap-3">
+            <Link href="/canvas/demo" className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors">
+              Ver exemplo
+            </Link>
+            <button onClick={() => setCanvasExpanded(true)} title="Expandir canvas"
+              className="text-muted-foreground hover:text-foreground transition-colors">
+              <Maximize2 className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Canvas — forceMount para não perder estado ao trocar de tab */}
+        <TabsContent forceMount value="canvas"
+          className="flex-1 min-h-0 overflow-auto m-0 data-[state=inactive]:hidden">
+          {projectLoading ? (
+            <CanvasSkeleton />
+          ) : (
+            <div className="p-6">
+              <ProjectCanvas canvas={canvas} onUpdate={update} saving={saving} />
+            </div>
+          )}
+        </TabsContent>
+
+        {/* Tarefas */}
+        <TabsContent value="tarefas" className="flex-1 min-h-0 overflow-auto m-0 p-8">
+          {tasksLoading ? (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : tasks.length === 0 ? (
+            <Card className="border-dashed">
+              <CardContent className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
+                <ClipboardList className="h-8 w-8 opacity-30" />
+                <p className="text-sm">Nenhuma tarefa vinculada a este projeto.</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-2">
+              {tasks.map((task) => (
+                <div key={task.id}
+                  className="flex items-center justify-between gap-4 px-4 py-3 border rounded-lg bg-card hover:border-primary/40 hover:bg-muted/30 transition-all">
+                  <div className="flex items-center gap-3 min-w-0">
+                    {task.taskNumber && (
+                      <span className="text-[10px] font-mono text-muted-foreground/60 shrink-0">
+                        {task.taskNumber}
+                      </span>
+                    )}
+                    <span className="text-sm font-medium truncate">{task.name}</span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <PriorityBadge priority={task.priority} />
+                    <StatusBadge status={task.status} />
+                    <Link href={`/tasks/${task.id}`}
+                      className="p-1.5 hover:bg-primary/10 rounded text-primary transition-colors">
+                      <Eye className="h-3.5 w-3.5" />
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
+
+      {/* Overlay expand — mesmo canvas/update, sem nova instância */}
+      {canvasExpanded && (
+        <div className="fixed inset-0 z-50 bg-slate-50 overflow-auto">
+          <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-3 bg-white border-b border-slate-200">
+            <span className="text-sm font-medium text-slate-700">{project.name} — Canvas</span>
+            <button onClick={() => setCanvasExpanded(false)} title="Minimizar"
+              className="text-muted-foreground hover:text-foreground transition-colors">
+              <Minimize2 className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="p-6">
+            <ProjectCanvas canvas={canvas} onUpdate={update} saving={saving} />
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function ProjectDetailPage() {
   const params = useParams()
   const router = useRouter()
   const id = params.id as string
 
-  const { data: project, error: projectError, isLoading } = useSWR<Project>(
+  const { data: project, error: projectError, isLoading, isValidating } = useSWR<Project>(
     `/api/projects/${id}`,
     fetcher
   )
@@ -120,117 +276,5 @@ export default function ProjectDetailPage() {
     )
   }
 
-  return (
-    <div className="flex flex-col h-screen overflow-hidden">
-      {/* Header fixo */}
-      <div className="px-8 pt-8 pb-6 space-y-4 border-b bg-background">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => router.back()}
-          className="gap-1.5 text-muted-foreground hover:text-foreground -ml-2"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Voltar
-        </Button>
-
-        <div className="flex items-start justify-between gap-4">
-          <div className="space-y-1 min-w-0 flex-1">
-            {project.projectNumber && (
-              <div className="flex items-center gap-1.5 text-xs font-mono text-muted-foreground">
-                <Hash className="h-3 w-3" />
-                {project.projectNumber}
-              </div>
-            )}
-            <h1 className="text-3xl font-bold tracking-tight uppercase">{project.name}</h1>
-            <div className="h-0.5 w-12 bg-primary rounded-full mt-2" />
-          </div>
-          <Badge variant="secondary" className="shrink-0 mt-1">{project.status}</Badge>
-        </div>
-
-        <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-          <Calendar className="h-3.5 w-3.5" />
-          Criado em {new Date(project.createdAt).toLocaleDateString("pt-BR", {
-            day: "2-digit", month: "long", year: "numeric",
-          })}
-        </div>
-
-        {project.description && (
-          <p className="text-sm leading-relaxed text-muted-foreground max-w-4xl">
-            {project.description}
-          </p>
-        )}
-      </div>
-
-      {/* Tabs + conteúdo scrollável */}
-      <Tabs defaultValue="canvas" className="flex-1 flex flex-col min-h-0">
-        <div className="px-8 pt-4 border-b bg-background">
-          <TabsList className="bg-muted/40 border border-border/50 p-0.5 h-9">
-            <TabsTrigger value="canvas" className="gap-2 px-4">
-              <LayoutTemplate className="h-3.5 w-3.5" />
-              Canvas
-            </TabsTrigger>
-            <TabsTrigger value="tarefas" className="gap-2 px-4">
-              <ClipboardList className="h-3.5 w-3.5" />
-              Tarefas
-              {tasks.length > 0 && (
-                <span className="ml-1 text-[10px] font-mono bg-muted px-1.5 py-0.5 rounded-full">
-                  {tasks.length}
-                </span>
-              )}
-            </TabsTrigger>
-          </TabsList>
-        </div>
-
-        {/* Canvas */}
-        <TabsContent value="canvas" className="flex-1 min-h-0 overflow-auto m-0">
-          <ProjectCanvas projectId={id} initialCanvas={project.canvas} />
-        </TabsContent>
-
-        {/* Tarefas */}
-        <TabsContent value="tarefas" className="flex-1 min-h-0 overflow-auto m-0 p-8">
-          {tasksLoading ? (
-            <div className="flex items-center justify-center py-16">
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-            </div>
-          ) : tasks.length === 0 ? (
-            <Card className="border-dashed">
-              <CardContent className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
-                <ClipboardList className="h-8 w-8 opacity-30" />
-                <p className="text-sm">Nenhuma tarefa vinculada a este projeto.</p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-2 max-w-4xl">
-              {tasks.map((task) => (
-                <div
-                  key={task.id}
-                  className="flex items-center justify-between gap-4 px-4 py-3 border rounded-lg bg-card hover:border-primary/40 hover:bg-muted/30 transition-all"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    {task.taskNumber && (
-                      <span className="text-[10px] font-mono text-muted-foreground/60 shrink-0">
-                        {task.taskNumber}
-                      </span>
-                    )}
-                    <span className="text-sm font-medium truncate">{task.name}</span>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <PriorityBadge priority={task.priority} />
-                    <StatusBadge status={task.status} />
-                    <Link
-                      href={`/tasks/${task.id}`}
-                      className="p-1.5 hover:bg-primary/10 rounded text-primary transition-colors"
-                    >
-                      <Eye className="h-3.5 w-3.5" />
-                    </Link>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
-    </div>
-  )
+  return <ProjectDetailContent project={project} projectLoading={isValidating} tasks={tasks} tasksLoading={tasksLoading} />
 }

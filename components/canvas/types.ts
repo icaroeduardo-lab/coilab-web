@@ -7,7 +7,7 @@ export type Canvas = {
   resources: { type: string; description: string[] }[]
   risksAndMitigation: { risk: string; mitigation: string }[]
   indicators: string[]
-  team: { avatar: string; name: string; role: string; isLead: boolean }[]
+  team: { avatar: string; name: string; imageUrl?: string }[]
   notes: string
 }
 
