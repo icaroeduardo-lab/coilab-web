@@ -74,6 +74,7 @@ import {
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Select,
   SelectContent,
@@ -333,7 +334,7 @@ function TaskCard({ task }: { task: Task }) {
               </span>
             </div>
             <CardTitle className="text-sm font-bold">{task.name}</CardTitle>
-            <CardDescription className="text-xs">{task.project}</CardDescription>
+            <CardDescription className="text-xs uppercase">{task.project}</CardDescription>
           </CardHeader>
           <CardContent className="p-4 pt-0 text-xs">
             <div className="flex flex-col gap-1">
@@ -538,10 +539,12 @@ export default function Page() {
       visibleColumns: [...visibleColumns],
     }))
   }, [filters, visibleColumns])
+  const [coilabOnly, setCoilabOnly] = useState(false)
   const hasActiveFilters = search.trim().length > 0 || filters.priority.length > 0 || filters.project.length > 0 || filters.applicant.length > 0
   const clearFilters = () => { setFilters({ priority: [], project: [], applicant: [] }); setSearch("") }
 
   const filteredTasks = tasks.filter(task => {
+    if (coilabOnly && !task.project.toLowerCase().includes("coilab")) return false
     if (search.trim()) {
       const q = search.trim().toLowerCase()
       const matchesName = task.name.toLowerCase().includes(q)
@@ -591,6 +594,18 @@ export default function Page() {
       flowIds: [],
     },
   })
+
+  const createProject = form.watch("project")
+  const editProject = editForm.watch("project")
+  const isCoilabWeb = (p: string) => p.toLowerCase().includes("coilab")
+
+  useEffect(() => {
+    if (isCoilabWeb(createProject)) form.setValue("applicant", "DGD")
+  }, [createProject])
+
+  useEffect(() => {
+    if (isCoilabWeb(editProject)) editForm.setValue("applicant", "DGD")
+  }, [editProject])
 
   function handleDialogOpenChange(open: boolean) {
     setIsCreateDialogOpen(open)
@@ -864,12 +879,15 @@ export default function Page() {
                         <FormField
                           control={form.control}
                           name="applicant"
-                          render={({ field }) => (
+                          render={({ field }) => {
+                            const disabled = isCoilabWeb(createProject)
+                            return (
                             <FormItem>
                               <FormLabel>Solicitante *</FormLabel>
                               <Select
                                 onValueChange={field.onChange}
-                                defaultValue={field.value}
+                                value={field.value}
+                                disabled={disabled}
                               >
                                 <FormControl>
                                   <SelectTrigger className="w-full">
@@ -886,7 +904,8 @@ export default function Page() {
                               </Select>
                               <FormMessage />
                             </FormItem>
-                          )}
+                            )
+                          }}
                         />
                         <FormField
                           control={form.control}
@@ -1043,34 +1062,41 @@ export default function Page() {
                       <FormField
                         control={form.control}
                         name="flows"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Fluxo Previsto</FormLabel>
-                            <div className="space-y-3 border rounded-lg p-4 bg-muted/30">
-                              {flows.length === 0 ? (
-                                <p className="text-sm text-muted-foreground">Nenhum fluxo disponível</p>
-                              ) : (
-                                flows.map((flow) => (
-                                  <label key={flow.id} className="flex items-center gap-3 text-sm cursor-pointer hover:bg-muted/50 p-2 rounded transition-colors">
-                                    <input
-                                      type="checkbox"
-                                      checked={field.value?.map(String).includes(String(flow.id)) || false}
-                                      onChange={(e) => {
-                                        const updated = e.target.checked
-                                          ? [...(field.value || []), flow.id]
-                                          : (field.value || []).filter((id) => String(id) !== String(flow.id))
-                                        field.onChange(updated)
-                                      }}
-                                      className="rounded border-gray-300 cursor-pointer"
-                                    />
-                                    <span className="font-medium">{flow.name}</span>
-                                  </label>
-                                ))
-                              )}
-                            </div>
-                            <FormMessage />
-                          </FormItem>
-                        )}
+                        render={({ field }) => {
+                          const disabled = isCoilabWeb(createProject)
+                          return (
+                            <FormItem>
+                              <div className="flex items-center justify-between">
+                                <FormLabel>Fluxo Previsto</FormLabel>
+                                {disabled && <span className="text-[11px] text-muted-foreground">Não aplicável para este projeto</span>}
+                              </div>
+                              <div className={`space-y-3 border rounded-lg p-4 bg-muted/30 ${disabled ? "opacity-40 pointer-events-none select-none" : ""}`}>
+                                {flows.length === 0 ? (
+                                  <p className="text-sm text-muted-foreground">Nenhum fluxo disponível</p>
+                                ) : (
+                                  flows.map((flow) => (
+                                    <label key={flow.id} className="flex items-center gap-3 text-sm cursor-pointer hover:bg-muted/50 p-2 rounded transition-colors">
+                                      <input
+                                        type="checkbox"
+                                        disabled={disabled}
+                                        checked={field.value?.map(String).includes(String(flow.id)) || false}
+                                        onChange={(e) => {
+                                          const updated = e.target.checked
+                                            ? [...(field.value || []), flow.id]
+                                            : (field.value || []).filter((id) => String(id) !== String(flow.id))
+                                          field.onChange(updated)
+                                        }}
+                                        className="rounded border-gray-300 cursor-pointer"
+                                      />
+                                      <span className="font-medium">{flow.name}</span>
+                                    </label>
+                                  ))
+                                )}
+                              </div>
+                              <FormMessage />
+                            </FormItem>
+                          )
+                        }}
                       />
                     </div>
                   </div>
@@ -1175,6 +1201,14 @@ export default function Page() {
               </Button>
             )}
           </div>
+          <label className={`ml-auto flex items-center gap-2 cursor-pointer select-none shrink-0 px-3 py-1.5 rounded-md border transition-colors ${coilabOnly ? "bg-primary border-primary text-primary-foreground" : "border-border text-muted-foreground hover:border-primary/50"}`}>
+            <Checkbox
+              checked={coilabOnly}
+              onCheckedChange={v => setCoilabOnly(v === true)}
+              className={coilabOnly ? "border-primary-foreground data-checked:bg-transparent data-checked:text-primary-foreground" : ""}
+            />
+            <span className="text-xs font-medium">COILAB WEB</span>
+          </label>
         </div>
         )}
         <TabsContent value="kanban" className="pt-4 flex-1 min-h-0 overflow-auto">
@@ -1295,26 +1329,29 @@ export default function Page() {
                   <FormField
                     control={editForm.control}
                     name="applicant"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Solicitante *</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl>
-                            <SelectTrigger className="w-full">
-                              <SelectValue placeholder="Selecione" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {applicants.map((applicant) => (
-                              <SelectItem key={applicant.id} value={applicant.name}>
-                                {applicant.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
+                    render={({ field }) => {
+                      const disabled = isCoilabWeb(editProject)
+                      return (
+                        <FormItem>
+                          <FormLabel>Solicitante *</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value} disabled={disabled}>
+                            <FormControl>
+                              <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Selecione" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {applicants.map((applicant) => (
+                                <SelectItem key={applicant.id} value={applicant.name}>
+                                  {applicant.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )
+                    }}
                   />
                 </div>
                 <FormField
@@ -1360,41 +1397,45 @@ export default function Page() {
                 <FormField
                   control={editForm.control}
                   name="flowIds"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Fluxos</FormLabel>
-                      <div className="grid grid-cols-2 gap-1 border rounded-lg p-3 bg-muted/30 min-h-12">
-                        {flows.length === 0 ? (
-                          <p className="text-sm text-muted-foreground col-span-2 py-1">Nenhum fluxo disponível</p>
-                        ) : (
-                          flows.map((flow) => {
-                            const flowId = Number(flow.id)
-                            const checked = (field.value ?? []).includes(flowId)
-                            return (
-                              <label
-                                key={flow.id}
-                                className="flex items-center gap-2.5 text-sm cursor-pointer hover:bg-muted/50 px-2 py-1.5 rounded transition-colors"
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={checked}
-                                  onChange={(e) => {
-                                    const updated = e.target.checked
-                                      ? [...(field.value ?? []), flowId]
-                                      : (field.value ?? []).filter((id) => id !== flowId)
-                                    field.onChange(updated)
-                                  }}
-                                  className="rounded border-gray-300 cursor-pointer"
-                                />
-                                <span className="font-medium">{flow.name}</span>
-                              </label>
-                            )
-                          })
-                        )}
-                      </div>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+                  render={({ field }) => {
+                    const disabled = isCoilabWeb(editProject)
+                    return (
+                      <FormItem>
+                        <div className="flex items-center justify-between">
+                          <FormLabel>Fluxos</FormLabel>
+                          {disabled && <span className="text-[11px] text-muted-foreground">Não aplicável para este projeto</span>}
+                        </div>
+                        <div className={`grid grid-cols-2 gap-1 border rounded-lg p-3 bg-muted/30 min-h-12 ${disabled ? "opacity-40 pointer-events-none select-none" : ""}`}>
+                          {flows.length === 0 ? (
+                            <p className="text-sm text-muted-foreground col-span-2 py-1">Nenhum fluxo disponível</p>
+                          ) : (
+                            flows.map((flow) => {
+                              const flowId = Number(flow.id)
+                              const checked = (field.value ?? []).includes(flowId)
+                              return (
+                                <label key={flow.id} className="flex items-center gap-2.5 text-sm cursor-pointer hover:bg-muted/50 px-2 py-1.5 rounded transition-colors">
+                                  <input
+                                    type="checkbox"
+                                    disabled={disabled}
+                                    checked={checked}
+                                    onChange={(e) => {
+                                      const updated = e.target.checked
+                                        ? [...(field.value ?? []), flowId]
+                                        : (field.value ?? []).filter((id) => id !== flowId)
+                                      field.onChange(updated)
+                                    }}
+                                    className="rounded border-gray-300 cursor-pointer"
+                                  />
+                                  <span className="font-medium">{flow.name}</span>
+                                </label>
+                              )
+                            })
+                          )}
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )
+                  }}
                 />
                 <div className="flex gap-3 pt-4 border-t">
                   <Button type="submit" className="flex-1" size="lg" disabled={editForm.formState.isSubmitting}>
