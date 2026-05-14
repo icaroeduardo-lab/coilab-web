@@ -50,6 +50,10 @@
 }
 
 :root {
+    /* Canvas theme — blue (default) */
+    --canvas-primary: #1E3A5F;
+    --canvas-primary-soft: #EEF2F7;
+
     --background: oklch(0.98 0.004 240);
     --foreground: oklch(0.14 0.015 240);
     --card: oklch(1 0 0);

@@ -2,31 +2,29 @@
 
 import { useParams, useRouter } from "next/navigation"
 import useSWR from "swr"
-import ReactMarkdown from "react-markdown"
-import remarkGfm from "remark-gfm"
 import Link from "next/link"
 import {
-  ArrowLeft, FileText, Calendar, Hash, AlertCircle,
-  Loader2, BookOpen, ClipboardList, Eye,
+  ArrowLeft, Calendar, Hash, AlertCircle,
+  Loader2, ClipboardList, Eye, LayoutTemplate,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Skeleton } from "@/components/ui/skeleton"
+import { ProjectCanvas } from "@/components/canvas/ProjectCanvas"
+import type { Canvas } from "@/components/canvas/types"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
-const textFetcher = (url: string) =>
-  fetch(url).then((r) => (r.ok ? r.text() : null))
 
 type Project = {
   id: string
   projectNumber?: string
   name: string
   description?: string
-  documentPath?: string
   status: string
   createdAt: string
+  canvas?: Canvas
 }
 
 type Task = {
@@ -71,11 +69,6 @@ export default function ProjectDetailPage() {
     fetcher
   )
 
-  const { data: markdown, isLoading: markdownLoading } = useSWR<string | null>(
-    project?.documentPath ? `/api/projects/${id}/document` : null,
-    textFetcher
-  )
-
   const { data: tasks = [], isLoading: tasksLoading } = useSWR<Task[]>(
     id ? `/api/tasks/project/${id}` : null,
     fetcher
@@ -83,7 +76,7 @@ export default function ProjectDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="max-w-5xl mx-auto px-6 py-8 space-y-8">
+      <div className="px-6 py-8 space-y-8">
         <Skeleton className="h-8 w-20" />
         <div className="space-y-4">
           <div className="flex items-start justify-between gap-4">
@@ -93,12 +86,9 @@ export default function ProjectDetailPage() {
             </div>
             <Skeleton className="h-6 w-20 rounded-full" />
           </div>
-          <div className="flex gap-4">
-            <Skeleton className="h-4 w-28" />
-            <Skeleton className="h-4 w-24" />
-          </div>
-          <Skeleton className="h-4 w-full max-w-lg" />
-          <Skeleton className="h-4 w-2/3 max-w-md" />
+          <Skeleton className="h-4 w-full max-w-2xl" />
+          <Skeleton className="h-4 w-3/4 max-w-xl" />
+          <Skeleton className="h-4 w-1/2 max-w-lg" />
         </div>
         <div className="space-y-3">
           <div className="flex gap-2">
@@ -112,7 +102,6 @@ export default function ProjectDetailPage() {
                 <Skeleton className="h-3 w-40" />
                 <Skeleton className="h-5 w-14 rounded-full" />
                 <Skeleton className="h-3 w-20" />
-                <Skeleton className="h-3 w-16" />
               </div>
             ))}
           </div>
@@ -132,22 +121,21 @@ export default function ProjectDetailPage() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto px-6 py-8 space-y-8">
-      {/* Back */}
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => router.back()}
-        className="gap-1.5 text-muted-foreground hover:text-foreground -ml-2"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Voltar
-      </Button>
+    <div className="flex flex-col h-screen overflow-hidden">
+      {/* Header fixo */}
+      <div className="px-8 pt-8 pb-6 space-y-4 border-b bg-background">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => router.back()}
+          className="gap-1.5 text-muted-foreground hover:text-foreground -ml-2"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Voltar
+        </Button>
 
-      {/* Header */}
-      <div className="space-y-4">
         <div className="flex items-start justify-between gap-4">
-          <div className="space-y-1 min-w-0">
+          <div className="space-y-1 min-w-0 flex-1">
             {project.projectNumber && (
               <div className="flex items-center gap-1.5 text-xs font-mono text-muted-foreground">
                 <Hash className="h-3 w-3" />
@@ -160,87 +148,47 @@ export default function ProjectDetailPage() {
           <Badge variant="secondary" className="shrink-0 mt-1">{project.status}</Badge>
         </div>
 
-        <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-          <span className="flex items-center gap-1.5">
-            <Calendar className="h-3.5 w-3.5" />
-            Criado em {new Date(project.createdAt).toLocaleDateString("pt-BR", {
-              day: "2-digit", month: "long", year: "numeric",
-            })}
-          </span>
-          {project.documentPath && (
-            <span className="flex items-center gap-1.5">
-              <FileText className="h-3.5 w-3.5" />
-              Documentação anexada
-            </span>
-          )}
+        <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+          <Calendar className="h-3.5 w-3.5" />
+          Criado em {new Date(project.createdAt).toLocaleDateString("pt-BR", {
+            day: "2-digit", month: "long", year: "numeric",
+          })}
         </div>
 
         {project.description && (
-          <p className="text-sm leading-relaxed text-muted-foreground max-w-2xl">
+          <p className="text-sm leading-relaxed text-muted-foreground max-w-4xl">
             {project.description}
           </p>
         )}
       </div>
 
-      {/* Tabs */}
-      <Tabs defaultValue="documentacao">
-        <TabsList>
-          <TabsTrigger value="documentacao" className="gap-2">
-            <BookOpen className="h-3.5 w-3.5" />
-            Documentação
-          </TabsTrigger>
-          <TabsTrigger value="tarefas" className="gap-2">
-            <ClipboardList className="h-3.5 w-3.5" />
-            Tarefas
-            {tasks.length > 0 && (
-              <span className="ml-1 text-[10px] font-mono bg-muted px-1.5 py-0.5 rounded-full">
-                {tasks.length}
-              </span>
-            )}
-          </TabsTrigger>
-        </TabsList>
-
-        {/* Documentação */}
-        <TabsContent value="documentacao" className="mt-6">
-          {project.documentPath ? (
-            <div className="space-y-0">
-              <div className="flex items-center gap-2 px-4 py-2.5 bg-muted/50 border rounded-t-lg border-b-0">
-                <BookOpen className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium text-muted-foreground">
-                  Documentação do Projeto
+      {/* Tabs + conteúdo scrollável */}
+      <Tabs defaultValue="canvas" className="flex-1 flex flex-col min-h-0">
+        <div className="px-8 pt-4 border-b bg-background">
+          <TabsList className="bg-muted/40 border border-border/50 p-0.5 h-9">
+            <TabsTrigger value="canvas" className="gap-2 px-4">
+              <LayoutTemplate className="h-3.5 w-3.5" />
+              Canvas
+            </TabsTrigger>
+            <TabsTrigger value="tarefas" className="gap-2 px-4">
+              <ClipboardList className="h-3.5 w-3.5" />
+              Tarefas
+              {tasks.length > 0 && (
+                <span className="ml-1 text-[10px] font-mono bg-muted px-1.5 py-0.5 rounded-full">
+                  {tasks.length}
                 </span>
-              </div>
-              <Card className="rounded-t-none border-t-0 shadow-none">
-                <CardContent className="p-6 md:p-8">
-                  {markdownLoading ? (
-                    <div className="flex items-center justify-center py-16">
-                      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                    </div>
-                  ) : !markdown ? (
-                    <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
-                      <FileText className="h-8 w-8 opacity-40" />
-                      <p className="text-sm">Não foi possível carregar o documento.</p>
-                    </div>
-                  ) : (
-                    <div className="markdown-body">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{markdown}</ReactMarkdown>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-          ) : (
-            <Card className="border-dashed">
-              <CardContent className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
-                <FileText className="h-8 w-8 opacity-30" />
-                <p className="text-sm">Nenhum documento anexado a este projeto.</p>
-              </CardContent>
-            </Card>
-          )}
+              )}
+            </TabsTrigger>
+          </TabsList>
+        </div>
+
+        {/* Canvas */}
+        <TabsContent value="canvas" className="flex-1 min-h-0 overflow-auto m-0">
+          <ProjectCanvas projectId={id} initialCanvas={project.canvas} />
         </TabsContent>
 
         {/* Tarefas */}
-        <TabsContent value="tarefas" className="mt-6">
+        <TabsContent value="tarefas" className="flex-1 min-h-0 overflow-auto m-0 p-8">
           {tasksLoading ? (
             <div className="flex items-center justify-center py-16">
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -253,7 +201,7 @@ export default function ProjectDetailPage() {
               </CardContent>
             </Card>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-2 max-w-4xl">
               {tasks.map((task) => (
                 <div
                   key={task.id}
