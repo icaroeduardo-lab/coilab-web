@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 import Link from "next/link"
 import useSWR from "swr"
 import { formatDistanceToNow } from "date-fns"
@@ -17,6 +17,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Checkbox } from "@/components/ui/checkbox"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -140,8 +141,15 @@ function priorityBarClass(priority: string) {
 }
 
 export default function DashboardPage() {
+  const [coilabOnly, setCoilabOnly] = useState(false)
   const { data, isLoading } = useSWR<Task[]>("/api/tasks", fetcher)
-  const tasks = Array.isArray(data) ? data : []
+  const tasks = Array.isArray(data)
+    ? data.filter((t) =>
+        coilabOnly
+          ? t.project.toLowerCase().includes("coilab")
+          : !t.project.toLowerCase().includes("coilab")
+      )
+    : []
 
   const stats = useMemo(() => {
     const total = tasks.length
@@ -286,10 +294,30 @@ export default function DashboardPage() {
             <h1 className="text-4xl font-bold tracking-tight">{greeting}!</h1>
             <div className="h-0.5 w-12 bg-primary rounded-full mt-2" />
           </div>
-          <p className="text-sm text-muted-foreground">
-            {stats.total} tarefa{stats.total !== 1 ? "s" : ""} cadastrada
-            {stats.total !== 1 ? "s" : ""}
-          </p>
+          <div className="flex items-center gap-4">
+            <label
+              className={`flex items-center gap-2 cursor-pointer select-none px-3 py-1.5 rounded-md border transition-colors ${
+                coilabOnly
+                  ? "bg-primary border-primary text-primary-foreground"
+                  : "border-border text-muted-foreground hover:border-primary/50"
+              }`}
+            >
+              <Checkbox
+                checked={coilabOnly}
+                onCheckedChange={(v) => setCoilabOnly(v === true)}
+                className={
+                  coilabOnly
+                    ? "border-primary-foreground data-checked:bg-transparent data-checked:text-primary-foreground"
+                    : ""
+                }
+              />
+              <span className="text-xs font-medium">COILAB WEB</span>
+            </label>
+            <p className="text-sm text-muted-foreground">
+              {stats.total} tarefa{stats.total !== 1 ? "s" : ""} cadastrada
+              {stats.total !== 1 ? "s" : ""}
+            </p>
+          </div>
         </div>
 
         {/* KPI Cards */}
