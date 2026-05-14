@@ -544,7 +544,8 @@ export default function Page() {
   const clearFilters = () => { setFilters({ priority: [], project: [], applicant: [] }); setSearch("") }
 
   const filteredTasks = tasks.filter(task => {
-    if (coilabOnly && !task.project.toLowerCase().includes("coilab")) return false
+    const isCoilab = task.project.toLowerCase().includes("coilab")
+    if (coilabOnly ? !isCoilab : isCoilab) return false
     if (search.trim()) {
       const q = search.trim().toLowerCase()
       const matchesName = task.name.toLowerCase().includes(q)
