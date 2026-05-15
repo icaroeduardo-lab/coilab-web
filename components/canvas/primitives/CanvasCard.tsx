@@ -1,12 +1,15 @@
 import React from "react"
 import { cn } from "@/lib/utils"
 
+export type CanvasCardAccent = "primary" | "warn" | "danger"
+
 interface CanvasCardProps {
   id: string
   title: string
   icon: React.ReactNode
   span?: 1 | 2 | 3
   headerRight?: React.ReactNode
+  accent?: CanvasCardAccent
   children: React.ReactNode
   className?: string
 }
@@ -20,7 +23,13 @@ const spanClass: Record<1 | 2 | 3, string> = {
   3: "col-span-3 max-lg:col-span-2 max-md:col-span-1",
 }
 
-export function CanvasCard({ id, title, icon, span = 1, headerRight, children, className }: CanvasCardProps) {
+const accentStyle: Record<CanvasCardAccent, React.CSSProperties> = {
+  primary: { backgroundColor: "var(--canvas-primary-soft)", color: "var(--canvas-primary)" },
+  warn:    { backgroundColor: "rgb(254 243 199)",            color: "rgb(180 83 9)" },
+  danger:  { backgroundColor: "rgb(254 226 226)",            color: "rgb(185 28 28)" },
+}
+
+export function CanvasCard({ id, title, icon, span = 1, headerRight, accent = "primary", children, className }: CanvasCardProps) {
   const titleId = `canvas-block-${id}`
   return (
     <section
@@ -35,13 +44,7 @@ export function CanvasCard({ id, title, icon, span = 1, headerRight, children, c
         <div className="flex items-center gap-2.5">
           <div
             className="flex items-center justify-center shrink-0"
-            style={{
-              width: 28,
-              height: 28,
-              borderRadius: 7,
-              backgroundColor: "var(--canvas-primary-soft)",
-              color: "var(--canvas-primary)",
-            }}
+            style={{ width: 28, height: 28, borderRadius: 7, ...accentStyle[accent] }}
           >
             {icon}
           </div>
