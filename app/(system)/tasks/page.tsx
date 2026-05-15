@@ -1148,7 +1148,7 @@ export default function Page() {
             />
             <FilterPopover
               label="Projeto"
-              options={projects.map(p => p.name)}
+              options={projects.filter(p => !isCoilabWeb(p.name)).map(p => p.name)}
               selected={filters.project}
               onChange={v => setFilters(f => ({ ...f, project: v }))}
             />

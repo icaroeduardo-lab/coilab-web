@@ -1608,6 +1608,8 @@ export default function TaskDetailPage() {
   }
 
   const enabledPhases = (data?.phases || []).filter(p => p.enabled).sort((a, b) => a.order - b.order)
+  const selectedPhase = selectedPhaseId ? enabledPhases.find(p => p.id === selectedPhaseId) : null
+  const isDiscoverySelected = !!(selectedPhase && (selectedPhase.type === "discovery" || selectedPhase.id.startsWith("discovery")))
 
   if (isLoading) {
     return (
@@ -1679,7 +1681,7 @@ export default function TaskDetailPage() {
 
   return (
     <div className="min-h-screen bg-background p-8">
-      <div className="max-w-5xl mx-auto">
+      <div className={isDiscoverySelected ? "" : "max-w-5xl mx-auto"}>
         {/* Header */}
         <div className="mb-8">
           <Button variant="ghost" size="sm" onClick={() => router.back()} className="mb-4">
@@ -1992,28 +1994,29 @@ export default function TaskDetailPage() {
                   <span className="text-base font-semibold">{phase.name}</span>
                 </div>
               </div>
+              {(phase.type === "discovery" || phase.id.startsWith("discovery")) ? (
+                <div className="space-y-4">
+                  {data.status !== "Concluído" && (phase.status === "completed" || phase.status === "approved" || phase.status === "rejected" || phase.status === "cancelled") && (
+                    <PhaseApproval
+                      taskId={id}
+                      phaseId={phase.id}
+                      onApproved={() => mutate()}
+                      onRejected={() => mutate()}
+                    />
+                  )}
+                  <DiscoveryPhaseTab
+                    phase={phase}
+                    taskId={id}
+                    onPhaseUpdate={setPhases}
+                    discoveryMeta={phase.discoveryMeta}
+                    disabled={data.status === "Concluído"}
+                    onAfterSave={() => setSelectedPhaseId(null)}
+                  />
+                </div>
+              ) : (
               <Card>
                 <CardContent className="pt-6">
-                  {(phase.type === "discovery" || phase.id.startsWith("discovery")) ? (
-                    <div className="space-y-6">
-                      {data.status !== "Concluído" && (phase.status === "completed" || phase.status === "approved" || phase.status === "rejected" || phase.status === "cancelled") && (
-                        <PhaseApproval
-                          taskId={id}
-                          phaseId={phase.id}
-                          onApproved={() => mutate()}
-                          onRejected={() => mutate()}
-                        />
-                      )}
-                      <DiscoveryPhaseTab
-                        phase={phase}
-                        taskId={id}
-                        onPhaseUpdate={setPhases}
-                        discoveryMeta={phase.discoveryMeta}
-                        disabled={data.status === "Concluído"}
-                        onAfterSave={() => setSelectedPhaseId(null)}
-                      />
-                    </div>
-                  ) : (phase.type === "design" || phase.id.startsWith("design")) ? (
+                  {(phase.type === "design" || phase.id.startsWith("design")) ? (
                     <div className="space-y-6">
                       {data.status !== "Concluído" && (phase.status === "completed" || phase.status === "approved" || phase.status === "rejected" || phase.status === "cancelled") && (
                         <PhaseApproval
@@ -2059,6 +2062,7 @@ export default function TaskDetailPage() {
                   )}
                 </CardContent>
               </Card>
+              )}
             </div>
           )
         })()}
